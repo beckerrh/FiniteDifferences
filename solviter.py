@@ -2,83 +2,160 @@
 #  ligne prÃ©cedente pour pouvoir avoir les accents dans les commentaires
 
 import numpy as np
-from scipy import sparse
-import scipy
-from scipy.sparse.linalg import spsolve
+import matplotlib.pyplot as plt
+import time as time
 
-pi = np.pi
 
-####  fonction construisant la matrice et le second membre ####
-def systeme(ksolve,ksch,N):
-    if ksolve <= 4: #matrice ordinaire
-        A = np.zeros([N * N, N * N])
-    else: #ksolve=5: matrice creuse, le format "lil" est le plus rapide en remplissage
-        A = sparse.lil_matrix((N * N, N * N))  # ne marche pas avec []
-
+def relax(ksolve, ksch, N):
+    print(f"ksolve={ksolve} N={N} ksh={ksh}")
+    niter = 0  # nombre d'itÃ©ration des mÃ©thodes itÃ©ratives
+    nitermax = 100000  # nombre maxi d'iteration de jacobi
+    restab = np.zeros(nitermax)
+    errtab = np.zeros(nitermax)
+    pi = np.pi
     #
     # Generation du maillage selon les axes x et y
     #
     x = np.linspace(0, 1, N)
     y = np.linspace(0, 1, N)
-
-    if ksch == 1:    # Remplissage dans le la matrice A dans le cas du schÃ©ma Ã  5 points
-        for i in range(0, N):
-            A[i, i] = 1
-
-        for i in range(1, N-1):
-            ii = i*N
-            A[ii, ii] = 1
-            for j in range(1, N-1):
-                ii = i*N + j
-                A[ii, ii] = 1
-                A[ii, ii - 1] = -1. / 4.
-                A[ii, ii + 1] = -1. / 4.
-                A[ii, ii - N] = -1. / 4.
-                A[ii, ii + N] = -1. / 4.
-
-            ii = i*N + N - 1
-            A[ii, ii] = 1
-
-        for i in range(N*(N-1)-1, N * N):
-            A[i, i] = 1
-
-    else:
-        # Remplissage de la matrice A dans le cas du schÃ©ma Ã  9 points
-        print ("ksch=2 direct non implÃ©mentÃ©")
-        A=np.eye(N*N)
-
-    # Remplissage du vecteur b
-    b = np.zeros(N * N)
-
-    for i in range(N):
-        ii = i*N + N -1
-        b[ii] = np.sin(pi * x[i])
-
-    for i in range(N):
-        ii = (N - 1) * N + i
-        b[ii] = np.sin(pi * y[i])
-
-    return A,b
-
-####  fonction rÃ©solvant le systÃ¨me  ####
-def direct(ksolve, ksch , N, Te):  #
-    A,b = systeme(ksolve,ksch,N)
-
-    # RÃ©solution du systÃ¨me par mÃ©thode LU
-    #matrice ordinaire:
-    if ksolve == 4:
-        resu = np.linalg.solve(A, b)
-    #matrice creuse:
-    else:
-        resu = scipy.sparse.linalg.spsolve (scipy.sparse.csr_matrix(A), b)
-
-    # Remise en forme de la solution
+    #
+    #    solution approchee  T
     T = np.zeros([N, N])
-    ii = 0
-    for i in range(0,N):
-        for j in range(0,N):
-            T[i, j] = resu[ii]
-            ii = ii + 1
 
-    err = np.linalg.norm(T-Te)/N
-    return (err,T)
+    #
+    om = 2. * (1 - np.pi / N)
+    ####solution exacte Te
+    Te = np.zeros([N, N])
+    for i in range(0, N):
+        for j in range(0, N):
+            Te[i, j] = (1 / np.sinh(np.pi)) * (
+                        np.sinh(np.pi * x[i]) * np.sin(np.pi * y[j]) + np.sin(np.pi * x[i]) * np.sinh(np.pi * y[j]))
+    #####
+    #
+    #  Application des conditions aux limites (valeurs imposees en debut de calcul)
+    T[0, :] = 0.
+    T[:, 0] = 0.
+    for i in range(0, N):
+        T[N - 1, i] = np.sin(pi * y[i])
+
+    for i in range(0, N):
+        T[i, N - 1] = np.sin(pi * x[i])
+
+    debtime = time.time()
+    res = 1  # rÃ©sidu
+    while res > 1.0E-12 and niter < nitermax:  # on continu les iterations tant que le residu est trop grand
+        #  stockage du niveau N+1 au niveau N
+        U = T.copy()
+        if ksolve == 1:  # mÃ©thode de jacobi
+            if ksch == 1:
+                #  methode de jacobi a 5 Pts
+                for i in range(1, N - 1):
+                    for j in range(1, N - 1):
+                        T[i, j] = 0.25 * (U[i + 1, j] + U[i - 1, j] + U[i, j + 1] + U[i, j - 1])
+
+            if ksch == 2:
+                #  methode de jacobi a 9 pts
+                for i in range(1, N - 1):
+                    for j in range(1, N - 1):
+                        T[i, j] = 0.2 * (U[i + 1, j] + U[i - 1, j] + U[i, j + 1] + U[i, j - 1]) + 0.05 * (
+                                    U[i + 1, j + 1] + U[i - 1, j - 1] + U[i + 1, j - 1] + U[i - 1, j + 1])
+
+        if ksolve == 2:  # mÃ©thode de Gauss Seidel
+            if ksch == 1:
+                #  methode de Gauss Seidel a 5 Pts
+                for i in range(1, N - 1):
+                    for j in range(1, N - 1):
+                        T[i, j] = 0.25 * (U[i + 1, j] + T[i - 1, j] + U[i, j + 1] + T[i, j - 1])
+            if ksch == 2:
+                #  methode de Gauss Seidel a 9 pts
+                for i in range(1, N - 1):
+                    for j in range(1, N - 1):
+                        T[i, j] = 0.2 * (U[i + 1, j] + T[i - 1, j] + U[i, j + 1] + T[i, j - 1]) + 0.05 * (
+                                    U[i + 1, j + 1] + T[i - 1, j - 1] + T[i + 1, j - 1] + T[i - 1, j + 1])
+
+        if ksolve == 3:  # mÃ©thode SOR
+            if ksch == 1:
+                #  methode SOR a 5 Pts
+                for i in range(1, N - 1):
+                    for j in range(1, N - 1):
+                        T[i, j] = U[i, j] * (1 - om) + om * 0.25 * (
+                                    T[i - 1, j] + U[i + 1, j] + T[i, j - 1] + U[i, j + 1])
+
+            if ksch == 2:
+                #  methode SOR a 9 pts
+                for i in range(1, N - 1):
+                    for j in range(1, N - 1):
+                        T[i, j] = U[i, j] * (1 - om) + om * (
+                                    0.2 * (U[i + 1, j] + T[i - 1, j] + U[i, j + 1] + T[i, j - 1]) + 0.05 * (
+                                        U[i + 1, j + 1] + T[i - 1, j - 1] + T[i + 1, j - 1] + T[i - 1, j + 1]))
+
+        niter = niter + 1
+
+        # Calcul du residu en norme L2
+        res = np.linalg.norm(T - U) / N
+        restab[niter - 1] = np.log10(res)
+
+        # calcul de l'erreur en norme L2
+        err = np.linalg.norm(T - Te) / N
+        errtab[niter - 1] = np.log10(err)
+
+    fintime = time.time()
+    return (niter, errtab, restab, T, err, fintime - debtime)
+
+
+'''
+ni,errt,res,t,err,temp=relax(3, 1, 60, Te)
+print(f"le nombre d'iteration est {ni} \nle log10 de l'erreur est {err}")
+print("temps cpu", fintime-debtime)
+print("temps cpu2", temp)
+'''
+#####graphique
+import matplotlib.pyplot as plt
+from scipy import stats
+
+Tc = [6.02, 48.42, 163.84, 389.35]
+# Nc=[-3.15,-3.77,-4.16]
+Nc = [20, 40, 60, 80]
+#Nc = [5,10,20]
+nis = []
+temps = []
+errs = []
+ksolve = 3
+ksh = 1
+for ksolve in [1, 2, 3]:
+    nis.append([])
+    temps.append([])
+    errs.append([])
+    for N in Nc:
+        ni, errt, res, T, err, temp = relax(ksolve, ksh, N)
+        nis[ksolve - 1].append(ni)
+        temps[ksolve - 1].append(temp)
+        errs[ksolve - 1].append(err)
+print("nis", nis)
+print("errs", errs)
+print("temps", temps)
+coul = ['b', 'r', 'g']
+noms = ['Jacobi', 'Gauss-Seidel', 'SOR']
+
+for ksolve in [1, 2, 3]:
+    # slope, intercept, r_value, p_value, std_err = stats.linregress(Nc, temps[ksolve-1])
+    plt.plot(Nc, temps[ksolve - 1], f"{coul[ksolve - 1]}-x", label=f"méthode={noms[ksolve - 1]}")
+    # print(f"L'équation de la droite régression est 't={intercept:8.2f} + {slope:8.2f}N'")
+plt.legend()
+plt.title(f"ksh={ksh}")
+plt.xlabel('N')
+plt.ylabel('Temps de calcul (s)')
+plt.savefig(f"NvsT_{ksh}.png")
+plt.show()
+
+for ksolve in [1, 2, 3]:
+    # slope, intercept, r_value, p_value, std_err = stats.linregress(Nc, temps[ksolve-1])
+    plt.plot(temps[ksolve - 1], errs[ksolve - 1], f"{coul[ksolve - 1]}-x", label=f"méthode={noms[ksolve - 1]}")
+    #lprint(f"L'équation de la droite régression est 't={intercept:8.2f} + {slope:8.2f}N'")
+plt.legend()
+plt.title(f"ksh={ksh}")
+plt.ylabel('Erreur')
+plt.xlabel('Temps de calcul (s)')
+plt.savefig(f"TvsE_{ksh}.png"")
+plt.show()
+

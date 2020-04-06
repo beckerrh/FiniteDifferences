@@ -1,40 +1,57 @@
 import numpy as np
 import scipy.sparse as scsp
+import grid
 
 #-----------------------------------------------------------------#
-def createMatrixDiff1d(nx, dirichlet='both'):
+def createMatrixDiff1d(grid):
     """
-    nx is the number of nodes
     """
-    dx = 1/(nx-1)
+    nx = grid.n[0]
+    dx = grid.dx[0]
     offdiag = -np.ones(nx - 1)/dx/dx
     left = offdiag
     right = offdiag
     diag = 2*np.ones(nx)/dx/dx
     diag[0] /= 2
     diag[-1] /= 2
-    if dirichlet in ['left', 'both']:
+    if grid.bdrycond[0][0] == 'dirichlet':
         diag[0] = 1
         right[0] = 0
-    if dirichlet in ['right', 'both']:
+    if grid.bdrycond[0][1] == 'dirichlet':
         diag[-1] = 1
         left[-1] = 0
     A = scsp.diags(diagonals=(left, diag, right), offsets=[-1,0,1])
     return A.tocsr()
 
+#-----------------------------------------------------------------#
+def createVectorDiff1d(grid, f, u):
+    """
+    """
+    x = grid.x()
+    b = f(x)
+    print(f"x={x} b={b}")
+    if grid.bdrycond[0][0] == 'dirichlet': b[0] = u(x[0])
+    if grid.bdrycond[0][1] == 'dirichlet': b[-1] = u(x[-1])
+    return b
+
 
 #=================================================================#
-if __name__ == '__main__':
-    import scipy.sparse.linalg
+
+def test1d():
+    import scipy.sparse.linalg as linalg
     import matplotlib.pyplot as plt
-    nx = 5
-    dirichlet = 'right'
-    A = createMatrixDiff1d(nx, dirichlet=dirichlet)
-    print("A=",A.toarray())
-    b = np.ones(nx)
-    if dirichlet in ['left', 'both']: b[0] = 0
-    if dirichlet in ['right', 'both']: b[-1] = 0
-    x = scipy.sparse.linalg.spsolve(A,b)
-    print("x=",x)
-    plt.plot(x)
+    g = grid.Grid(n=[17], length=[[0,1]])
+    g.bdrycond[0][0] = 'dirichlet'
+    g.bdrycond[0][1] = 'dirichlet'
+    A = createMatrixDiff1d(g)
+    # print("A=", A.toarray())
+    f = np.vectorize(lambda x: np.pi**2*np.cos(np.pi*x))
+    u = np.vectorize(lambda x: np.cos(np.pi*x))
+    b = createVectorDiff1d(g, f, u)
+    uh = linalg.spsolve(A,b)
+    x = g.x()
+    plt.plot(x,uh, '-x', x, u(x))
     plt.show()
+
+if __name__ == '__main__':
+    test1d()

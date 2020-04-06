@@ -1,5 +1,5 @@
 # -*- encoding: utf-8 -*-
-#  ligne prÃ©cedente pour pouvoir avoir les accents dans les commentaires
+#  ligne précédente pour pouvoir avoir les accents dans les commentaires
 
 import numpy as np
 import matplotlib.pyplot as plt

@@ -1,0 +1,62 @@
+\documentclass[10pt]{article}
+%----------------------------------------
+\usepackage[a4paper, top=1cm, bottom=2cm]{geometry}
+\usepackage{graphicx, xcolor}
+%\usepackage[english]{babel}
+\usepackage{polyglossia}
+\setdefaultlanguage{english}
+\usepackage{fontspec}
+%\setmainfont{Comic Sans MS}
+%\setmainfont{Cochin}
+\setsansfont[Scale=MatchLowercase]{Palatino}
+\setmonofont{inconsolata}
+\usepackage{amssymb,amsmath}
+\usepackage{url}
+\definecolor{mygray}{rgb}{0.9,0.9,0.9}
+\definecolor{mygreen}{rgb}{0,0.6,0}
+
+\usepackage{listings}
+\lstset{ 
+  backgroundcolor=\color{mygray},
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  commentstyle=\color{mygreen},
+  deletekeywords={...},
+  escapeinside={\%*}{*)},
+  frame=single,
+  showstringspaces=false,
+  language=Python
+}
+\usepackage[many]{tcolorbox}
+\tcbuselibrary{breakable}
+
+\newcommand\mytabs{\hspace*{1cm}\=\hspace*{1cm}}
+\newenvironment{mytabbing}[1][\mytabs]
+  {\begin{tabbing}#1\kill}
+  {\end{tabbing}}
+
+%----------------------------------------
+\title{Finite difference}
+\author{Roland Becker}
+
+%==========================================
+\begin{document}
+%==========================================
+\maketitle
+%
+%
+%==========================================
+\section{Grid}\label{sec:}
+%==========================================
+%
+We suppose the following numbering
+%
+\begin{equation}\label{eq:}
+i = i_1 + i_2*n_1
+\end{equation}
+%
+%
+
+%==========================================
+\end{document}  
+%==========================================

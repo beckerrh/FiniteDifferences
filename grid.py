@@ -6,26 +6,28 @@ from mpl_toolkits.mplot3d import Axes3D
 #-----------------------------------------------------------------#
 class Grid():
     def __repr__(self):
-        return f" Grid({self.dim}) n={self.n}, length={self.length} dx={self.dx} bdrycond={self.bdrycond}"
-    def __init__(self, n, length):
-        self.n = n
+        return f" Grid({self.dim}) n={self.n}, bounds={self.bounds} dx={self.dx} bdrycond={self.bdrycond}"
+    def __init__(self, n, bounds):
+        self.n = np.asarray(n)
         self.dim = len(n)
-        self.length = np.asarray(length)
+        self.bounds = np.asarray(bounds)
         self.bdrycond = self.dim*[[None,None]]
-        if self.length.shape[0]!=self.dim:
-            raise ValueError(f"Problem: dim={self.dim} self.length.shape={self.length.shape}")
+        if self.bounds.shape[0]!=self.dim:
+            raise ValueError(f"Problem: dim={self.dim} self.bounds.shape={self.bounds.shape}")
         self.dx = np.empty(self.dim)
         for i in range(self.dim):
             if n[i] % 2 != 1:
                 raise ValueError(f"Problem: all n must be even numbers. Given n={n}")
-            self.dx[i] = (self.length[i][1]-self.length[i][0])/float(self.n[i]-1)
+            self.dx[i] = (self.bounds[i][1]-self.bounds[i][0])/float(self.n[i]-1)
+    def nall(self):
+        return np.prod(self.n)
     def x(self):
         x = []
         for i in range(self.dim):
-            x.append(np.linspace(self.length[i][0], self.length[i][1], self.n[i]))
+            x.append(np.linspace(self.bounds[i][0], self.bounds[i][1], self.n[i]))
         return x
     def coord(self):
-        return np.meshgrid(*self.x(), indexing='ij')
+        return np.array(np.meshgrid(*self.x(), indexing='ij'))
 
     def plot(self, ax = None):
         if self.dim==1:
@@ -46,9 +48,9 @@ class Grid():
 
 #=================================================================#
 if __name__ == '__main__':
-    grid1 = Grid(n=[5], length=[[1,3]])
-    grid2 = Grid(n=[5, 7], length=[[1,3], [2,4]])
-    grid3 = Grid(n=[5, 7, 3], length=[[1,3], [2,4], [0,2]])
+    grid1 = Grid(n=[5], bounds=[[1,3]])
+    grid2 = Grid(n=[5, 7], bounds=[[1,3], [2,4]])
+    grid3 = Grid(n=[5, 7, 3], bounds=[[1,3], [2,4], [0,2]])
     # print(grid1, grid2, grid3)
 
     # grid1.plot()

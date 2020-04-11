@@ -2,27 +2,9 @@ import numpy as np
 import scipy.sparse as scsp
 import grid
 import simfempy.tools.analyticalsolution as anasol
+import scipy.sparse.linalg as linalg
+import matplotlib.pyplot as plt
 
-#-----------------------------------------------------------------#
-def createMatrixDiff1d(grid):
-    """
-    """
-    nx = grid.n[0]
-    dx = grid.dx[0]
-    offdiag = -np.ones(nx - 1)/dx/dx
-    left = offdiag.copy()
-    right = offdiag.copy()
-    diag = 2*np.ones(nx)/dx/dx
-    diag[0] /= 2
-    diag[-1] /= 2
-    if grid.bdrycond[0][0] == 'dirichlet':
-        diag[0] = 1
-        right[0] = 0
-    if grid.bdrycond[0][1] == 'dirichlet':
-        diag[-1] = 1
-        left[-1] = 0
-    A = scsp.diags(diagonals=(left, diag, right), offsets=[-1,0,1])
-    return A.tocsr()
 #-----------------------------------------------------------------#
 def createMatrixDiff2d(grid):
     """
@@ -71,78 +53,132 @@ def createMatrixDiff2d(grid):
     A = scsp.diags(diagonals=diagonals, offsets=offsets)
     # print("A=\n", A.toarray())
     return A.tocsr()
-
 #-----------------------------------------------------------------#
-def createVectorDiff1d(grid, u):
+def createMatrixDiff(grid):
     """
     """
-    x, = grid.coord()
-    b = -u.xx(x)
-    # print(f"x={x} b={b}")
-    if grid.bdrycond[0][0] == 'dirichlet': b[0] = u(x[0])
-    if grid.bdrycond[0][1] == 'dirichlet': b[-1] = u(x[-1])
-    return b
-
+    n, ds, dim, nall = grid.n, grid.dx, grid.dim, grid.nall()
+    sdiag = np.sum(2/ds**2)
+    soff = -1/ds**2
+    diag = sdiag*np.ones(shape=n)
+    dP, dM = np.empty(shape=(dim,*n)), np.empty(shape=(dim,*n))
+    for i in range(dim):
+        dP[i] = dM[i] = soff[i]
+    # mettre a zero ce qui sont dehors
+    for i in range(dim):
+        np.moveaxis(dP[i], i, 0)[-1] = 0
+        np.moveaxis(dM[i], i, 0)[ 0] = 0
+    # mettre a zero pour Dirichlet
+    for i in range(dim):
+        if grid.bdrycond[i][0] == 'dirichlet':
+            np.moveaxis(diag, i, 0)[0] = 1
+            for j in range(dim):
+                np.moveaxis(dP[j], i, 0)[0] = np.moveaxis(dM[j], i, 0)[0] =0
+        if grid.bdrycond[i][1] == 'dirichlet':
+            np.moveaxis(diag, i, 0)[-1] = 1
+            for j in range(dim):
+                np.moveaxis(dP[j], i, 0)[-1] = np.moveaxis(dM[j], i, 0)[-1] =0
+    diagonals = [diag.reshape(nall)]
+    offsets = [0]
+    for i in range(dim):
+        stride = int(np.prod(list(reversed(n))[:i-1]))
+        diagonals.append(dM[i].reshape(nall)[stride:])
+        offsets.append(-stride)
+        diagonals.append(dP[i].reshape(nall)[:-stride])
+        offsets.append(stride)
+    A = scsp.diags(diagonals=diagonals, offsets=offsets)
+    # print("A=\n", A.toarray())
+    return A.tocsr()
 #-----------------------------------------------------------------#
-def createVectorDiff2d(grid, u):
+def createRhsVectorDiff(grid, u):
     """
     """
-    x,y = grid.coord()
-    b = -u.xx(x,y) - u.yy(x,y)
-    print("b", b.shape)
-    # print(f"x={x} b={b}")
-    if grid.bdrycond[0][0] == 'dirichlet': b[0,:] = u(x[0,:],y[0,:])
-    if grid.bdrycond[0][1] == 'dirichlet': b[-1,:] = u(x[-1,:],y[-1,:])
-    if grid.bdrycond[1][0] == 'dirichlet': b[:,0] = u(x[:,0],y[:,0])
-    if grid.bdrycond[1][1] == 'dirichlet': b[:,-1] = u(x[:,-1],y[:,-1])
+    x = grid.coord()
+    d = grid.dim
+    b = np.zeros(x[0].shape)
+    for i in range(d):
+        b -= u.dd(i,i,x)
+    for i in range(d):
+        if grid.bdrycond[i][0] == 'dirichlet':
+            bs, xs = np.moveaxis(b, i, 0), np.moveaxis(x, i+1, 1)
+            bs[ 0] = u(xs[:, 0])
+        if grid.bdrycond[i][1] == 'dirichlet':
+            bs, xs = np.moveaxis(b, i, 0), np.moveaxis(x, i + 1, 1)
+            bs[-1] = u(xs[:, -1])
     return b.ravel()
-
+#-----------------------------------------------------------------#
+def errorl2(grid, uh, u, compute_error=False):
+    """
+    """
+    x = grid.coord()
+    n = grid.nall()
+    errl2 = np.linalg.norm(uh-u(x).ravel())/np.sqrt(n)
+    if not compute_error: return errl2
+    return errl2, uh-u(x)
+#-----------------------------------------------------------------#
+def plot(grid, uh, u=None, plot_error=False):
+    """
+    """
+    x = grid.coord()
+    d = grid.dim
+    if d==1:
+        plt.plot(x.ravel(), uh, '-xb')
+        if plot_error:
+            if u is None: raise ValueError("Problem: need exact solution")
+            plt.plot(x.ravel(), u(x), '-r')
+        plt.show()
+    elif d==2:
+        x = grid.coord()
+        cnt = plt.contour(x[0], x[1], uh.reshape(grid.n))
+        plt.clabel(cnt, cnt.levels, inline=True, fmt='%.1f', fontsize=10)
+        plt.show()
 
 #=================================================================#
-
-def test1d():
-    import scipy.sparse.linalg as linalg
-    import matplotlib.pyplot as plt
-    g = grid.Grid(n=[17], length=[[1,3]])
-    g.bdrycond[0][0] = 'dirichlet'
-    g.bdrycond[0][1] = 'dirichlet'
-    A = createMatrixDiff1d(g)
-    # print("A=", A.toarray())
-    u = anasol.AnalyticalSolution('cos(pi*x)')
-    u = anasol.AnalyticalSolution('x*(1-x)+1')
-    b = createVectorDiff1d(g, u)
-    print("b=",b)
+def test(n, expr, bounds, show=False):
+    g = grid.Grid(n=n, bounds=bounds)
+    for i in range(g.dim):
+        g.bdrycond[i][0] = g.bdrycond[i][1] = 'dirichlet'
+    A = createMatrixDiff(g)
+    u = anasol.AnalyticalSolution(g.dim, expr)
+    b = createRhsVectorDiff(g, u)
     uh = linalg.spsolve(A,b)
-    x, = g.coord()
-    plt.plot(x,uh, '-x', x, u(x))
-    plt.show()
+    if show: plot(grid=g, uh=uh, u=u, plot_error=True)
+    return errorl2(grid=g, uh=uh, u=u)
 
-
-def test2d():
-    import scipy.sparse.linalg as linalg
-    import matplotlib.pyplot as plt
-    g = grid.Grid(n=[15,15], length=[[0,1],[0,1]])
-    g.bdrycond[0][0] = 'dirichlet'
-    g.bdrycond[0][1] = 'dirichlet'
-    g.bdrycond[1][0] = 'dirichlet'
-    g.bdrycond[1][1] = 'dirichlet'
-    A = createMatrixDiff2d(g)
-    # print("A=", A.toarray())
-    # u = np.vectorize(lambda x,y: np.cos(np.pi*x)*np.cos(np.pi*y))
-    # f = np.vectorize(lambda x,y: 2*np.pi**2*np.cos(np.pi*x)*np.cos(np.pi*y))
-    # u = np.vectorize(lambda x,y: x*(1-x)+y*(1-y)+1)
-    # f = np.vectorize(lambda x,y: 4)
-    # u = anasol.AnalyticalSolution('cos(pi*x)*cos(pi*y)')
-    u = anasol.AnalyticalSolution('x*(1-x)+y*(1-y)+1')
-    b = createVectorDiff2d(g, u)
-    uh = linalg.spsolve(A,b)
-    x,y = g.coord()
-    # plt.plot(x,uh, '-x', x, u(x))
-    cnt = plt.contour(x, y, uh.reshape(g.n[0],g.n[1]))
-    plt.clabel(cnt, cnt.levels, inline=True, fmt='%.1f', fontsize=10)
+def testerror(ns, bounds, expr):
+    from scipy import stats
+    import time
+    errs=[]
+    times=[]
+    d = len(bounds)
+    for i,n in enumerate(ns):
+        t0 = time.time()
+        err = test(n=d*[n], bounds=bounds, expr=expr, show=False)
+        errs.append(err)
+        t1 = time.time()
+        times.append(t1-t0)
+    slope, ic, r, p, stderr  = stats.linregress(np.log(ns), np.log(errs))
+    # print(f"y = {slope:4.2f} * x  {ic:+4.2f}")
+    fig = plt.figure()
+    ax = fig.add_subplot(211)
+    ax.set_xlabel(r'log(n)')
+    ax.set_ylabel(r'log(e)')
+    ax.set_title(f"y = {slope:4.2f} * x  {ic:+4.2f}")
+    ax.loglog(ns, errs, '-x')
+    ax = fig.add_subplot(212)
+    ax.set_xlabel(r'log(n)')
+    ax.set_ylabel(r't')
+    ax.set_title(f"nall = {ns[-1]**d}")
+    # le premier est trop grand !!
+    ax.plot(np.log(ns[1:]), times[1:], '-x')
+    print("times", times)
     plt.show()
 
 if __name__ == '__main__':
     # print("simfempy", simfempy.__version__)
-    # test1d()
-    test2d()
+    ns = [5, 9, 17, 33, 65, 129, 267, 523, 1045]
+    # testerror(ns, bounds=[[0,1]], expr='cos(pi*x)')
+    # testerror(ns[:-2], bounds=[[0,1], [0,1]], expr='cos(pi*x)*cos(pi*y)')
+    testerror(ns[:-3], bounds=[[0,1], [0,1], [0,1]], expr='cos(pi*x)*cos(pi*y)*cos(pi*z)')
+    # err = test(n=[11], bounds=[[1,3]], expr='x*(1-x)+1', show=True)
+    # print(f"errl2={err}")

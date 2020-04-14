@@ -1,14 +1,7 @@
-\documentclass[10pt]{article}
+\documentclass[12pt, english]{article}
 %----------------------------------------
 \usepackage[a4paper, top=1cm, bottom=2cm]{geometry}
 \usepackage{graphicx, xcolor}
-%\usepackage[english]{babel}
-\usepackage{polyglossia}
-\setdefaultlanguage{english}
-\usepackage{fontspec}
-%\setmainfont{Comic Sans MS}
-%\setmainfont{Cochin}
-\setsansfont[Scale=MatchLowercase]{Palatino}
 \setmonofont{inconsolata}
 \usepackage{amssymb,amsmath}
 \usepackage{url}
@@ -30,11 +23,6 @@
 \usepackage[many]{tcolorbox}
 \tcbuselibrary{breakable}
 
-\newcommand\mytabs{\hspace*{1cm}\=\hspace*{1cm}}
-\newenvironment{mytabbing}[1][\mytabs]
-  {\begin{tabbing}#1\kill}
-  {\end{tabbing}}
-
 %----------------------------------------
 \title{Finite difference}
 \author{Roland Becker}
@@ -52,7 +40,7 @@
 We suppose the following numbering
 %
 \begin{equation}\label{eq:}
-i = i_1 + i_2*n_1
+ii = \sum_{j=0}^{d-1}\left(\prod_{k=j+1}^{d-1}n_k\right) i_j,\quad i=[i_0,\ldots,i_{d-1}]
 \end{equation}
 %
 %

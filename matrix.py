@@ -4,6 +4,39 @@ import grid
 import simfempy.tools.analyticalsolution as anasol
 import scipy.sparse.linalg as linalg
 import matplotlib.pyplot as plt
+import pyamg
+
+#-----------------------------------------------------------------#
+def interpolate(grid, uold):
+    if uold is None:
+        return np.zeros(grid.nall())
+    nold = (np.array(grid.n, dtype=int)-1)//2 +1
+    # print(f"uold.shape={uold.shape} n={np.prod(nold)} nold={nold}")
+    # print(f"grid.n={grid.n} grid.nall={grid.nall()}")
+    assert grid.dim == 2
+    uold = uold.reshape(nold)
+    unew = np.zeros(grid.n+2)
+    # print(f"uold.shape={uold.shape} unew.shape={unew.shape}")
+    for ix in range(nold[0]):
+        ix2 = 2 * ix+1
+        for iy in range(nold[1]):
+            iy2 = 2 * iy + 1
+            unew[ix2, iy2] += uold[ix, iy]
+            unew[ix2 - 1, iy2] += 0.5 * uold[ix, iy]
+            unew[ix2 + 1, iy2] += 0.5 * uold[ix, iy]
+            unew[ix2, iy2 - 1] += 0.5 * uold[ix, iy]
+            unew[ix2, iy2 + 1] += 0.5 * uold[ix, iy]
+            unew[ix2 + 1, iy2 - 1] += 0.25 * uold[ix, iy]
+            unew[ix2 - 1, iy2 + 1] += 0.25 * uold[ix, iy]
+            unew[ix2 - 1, iy2 - 1] += 0.25 * uold[ix, iy]
+            unew[ix2 + 1, iy2 + 1] += 0.25 * uold[ix, iy]
+    unew = unew[1:-1,1:-1]
+    # x = grid.coord()
+    # cnt = plt.contour(x[0], x[1], unew)
+    # plt.clabel(cnt, cnt.levels, inline=True, fmt='%.1f', fontsize=10)
+    # plt.show()
+    return unew.ravel()
+
 
 #-----------------------------------------------------------------#
 def createMatrixDiff2d(grid):
@@ -134,51 +167,95 @@ def plot(grid, uh, u=None, plot_error=False):
         plt.show()
 
 #=================================================================#
-def test(n, expr, bounds, show=False):
+def test(n, expr, bounds, show=False, solver='scsp', uold=None):
     g = grid.Grid(n=n, bounds=bounds)
     for i in range(g.dim):
         g.bdrycond[i][0] = g.bdrycond[i][1] = 'dirichlet'
     A = createMatrixDiff(g)
     u = anasol.AnalyticalSolution(g.dim, expr)
     b = createRhsVectorDiff(g, u)
-    uh = linalg.spsolve(A,b)
+    niter = -1
+    if solver == 'scsp':
+        uh = linalg.spsolve(A,b)
+    elif solver == 'pyamg':
+        u0 = interpolate(g, uold)
+        res = []
+        B = np.ones((A.shape[0], 1))
+        SA_build_args = {
+            'max_levels': 10,
+            'max_coarse': 10,
+            'coarse_solver': 'lu',
+            'symmetry': 'hermitian'}
+        # smooth = ('energy', {'krylov': 'cg'})
+        # strength = [('evolution', {'k': 2, 'epsilon': 0.2})]
+        presmoother = ('gauss_seidel', {'sweep': 'symmetric', 'iterations': 2})
+        postsmoother = ('gauss_seidel', {'sweep': 'symmetric', 'iterations': 2})
+        ml = pyamg.smoothed_aggregation_solver(A, B=B, **SA_build_args)
+        SA_solve_args = {'cycle': 'V', 'maxiter': 200, 'tol': 1e-10}
+        uh = ml.solve(b=b, x0=u0, residuals=res, **SA_solve_args)
+        # uh = pyamg.solve(A, b, verb=0, tol=1e-10, x0=u0, residuals=res)
+        niter = len(res)
+    else:
+        raise KeyError(f"Problem: unknown solver {solver}")
     if show: plot(grid=g, uh=uh, u=u, plot_error=True)
-    return errorl2(grid=g, uh=uh, u=u)
+    return errorl2(grid=g, uh=uh, u=u), uh, niter
 
+#=================================================================#
 def testerror(ns, bounds, expr):
     from scipy import stats
     import time
-    errs=[]
-    times=[]
     d = len(bounds)
+    solvers = ['scsp', 'pyamg']
+    # solvers = ['scsp']
+    errs, times, niters = {}, {}, {}
+    times={}
+    for solver in solvers:
+        times[solver], errs[solver], niters[solver] = [], [], []
+    uold = None
     for i,n in enumerate(ns):
-        t0 = time.time()
-        err = test(n=d*[n], bounds=bounds, expr=expr, show=False)
-        errs.append(err)
-        t1 = time.time()
-        times.append(t1-t0)
-    slope, ic, r, p, stderr  = stats.linregress(np.log(ns), np.log(errs))
+        for solver in solvers:
+            t0 = time.time()
+            err, u, niter = test(n=d*[n], bounds=bounds, expr=expr, show=False, solver=solver, uold=uold)
+            if solver == 'pyamg': uold = u
+            errs[solver].append(err)
+            niters[solver].append(niter)
+            t1 = time.time()
+            times[solver].append(t1-t0)
+    slope, ic, r, p, stderr  = stats.linregress(np.log(ns), np.log(errs[solvers[0]]))
     # print(f"y = {slope:4.2f} * x  {ic:+4.2f}")
     fig = plt.figure()
-    ax = fig.add_subplot(211)
+    ax = fig.add_subplot(311)
     ax.set_xlabel(r'log(n)')
     ax.set_ylabel(r'log(e)')
     ax.set_title(f"y = {slope:4.2f} * x  {ic:+4.2f}")
-    ax.loglog(ns, errs, '-x')
-    ax = fig.add_subplot(212)
+    for solver in solvers:
+        ax.loglog(ns, errs[solver], '-x', label=f"{solver}")
+    ax.legend()
+    ax = fig.add_subplot(312)
+    ax.set_xlabel(r'log(n)')
+    ax.set_ylabel(r'niter')
+    ax.set_title(f"nall = {ns[-1]**d}")
+    # le premier est trop grand !!
+    print(f"niters {niters}")
+    for solver in solvers:
+        if np.any(np.array(niters[solver]) != -1):
+            ax.plot(np.log(ns), niters[solver], '-x', label=f"{solver}")
+    ax.legend()
+    ax = fig.add_subplot(313)
     ax.set_xlabel(r'log(n)')
     ax.set_ylabel(r't')
     ax.set_title(f"nall = {ns[-1]**d}")
     # le premier est trop grand !!
-    ax.plot(np.log(ns[1:]), times[1:], '-x')
-    print("times", times)
+    for solver in solvers:
+        ax.plot(np.log(ns[1:]), times[solver][1:], '-x', label=f"{solver}")
+    ax.legend()
     plt.show()
 
 if __name__ == '__main__':
     # print("simfempy", simfempy.__version__)
-    ns = [5, 9, 17, 33, 65, 129, 267, 523, 1045]
+    ns = [5, 9, 17, 33, 65, 129, 257, 513, 1025]
     # testerror(ns, bounds=[[0,1]], expr='cos(pi*x)')
-    # testerror(ns[:-2], bounds=[[0,1], [0,1]], expr='cos(pi*x)*cos(pi*y)')
-    testerror(ns[:-3], bounds=[[0,1], [0,1], [0,1]], expr='cos(pi*x)*cos(pi*y)*cos(pi*z)')
+    testerror(ns[:-1], bounds=[[0,1], [0,1]], expr='cos(pi*x)*cos(pi*y)')
+    # testerror(ns[:-4], bounds=[[0,1], [0,1], [0,1]], expr='cos(pi*x)*cos(pi*y)*cos(pi*z)')
     # err = test(n=[11], bounds=[[1,3]], expr='x*(1-x)+1', show=True)
     # print(f"errl2={err}")

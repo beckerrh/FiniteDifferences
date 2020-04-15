@@ -21,6 +21,12 @@ class Grid():
             self.dx[i] = (self.bounds[i][1]-self.bounds[i][0])/float(self.n[i]-1)
     def nall(self):
         return np.prod(self.n)
+    def strides(self):
+        strides = np.empty(self.dim, dtype=int)
+        for i in range(self.dim):
+            strides[i] = int(np.prod(list(reversed(self.n))[:i-1]))
+        return strides
+
     def x(self):
         x = []
         for i in range(self.dim):
@@ -28,7 +34,6 @@ class Grid():
         return x
     def coord(self):
         return np.array(np.meshgrid(*self.x(), indexing='ij'))
-
     def plot(self, ax = None):
         if self.dim==1:
             x = self.coord()

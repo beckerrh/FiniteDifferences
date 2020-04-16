@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.sparse as scsp
-import grid
+import grid, transfer
 import simfempy.tools.analyticalsolution as anasol
 import scipy.sparse.linalg as linalg
 import matplotlib.pyplot as plt
@@ -167,8 +167,7 @@ def plot(grid, uh, u=None, plot_error=False):
         plt.show()
 
 #=================================================================#
-def test(n, expr, bounds, show=False, solver='scsp', uold=None):
-    g = grid.Grid(n=n, bounds=bounds)
+def test(g, expr, show=False, solver='scsp', uold=None, gold=None):
     for i in range(g.dim):
         g.bdrycond[i][0] = g.bdrycond[i][1] = 'dirichlet'
     A = createMatrixDiff(g)
@@ -178,7 +177,8 @@ def test(n, expr, bounds, show=False, solver='scsp', uold=None):
     if solver == 'scsp':
         uh = linalg.spsolve(A,b)
     elif solver == 'pyamg':
-        u0 = interpolate(g, uold)
+        if gold == None: u0 = np.zeros_like(b)
+        else: u0 = transfer.interpolate(g, gold, uold)
         res = []
         B = np.ones((A.shape[0], 1))
         SA_build_args = {
@@ -211,51 +211,62 @@ def testerror(ns, bounds, expr):
     times={}
     for solver in solvers:
         times[solver], errs[solver], niters[solver] = [], [], []
-    uold = None
+    uold, gold = None, None
+    N = []
     for i,n in enumerate(ns):
+        g = grid.Grid(n=n, bounds=bounds)
+        N.append(g.nall())
         for solver in solvers:
             t0 = time.time()
-            err, u, niter = test(n=d*[n], bounds=bounds, expr=expr, show=False, solver=solver, uold=uold)
-            if solver == 'pyamg': uold = u
+            err, u, niter = test(g, expr=expr, show=False, solver=solver, uold=uold, gold=gold)
+            if solver == 'pyamg': uold, gold = u, g
             errs[solver].append(err)
             niters[solver].append(niter)
             t1 = time.time()
             times[solver].append(t1-t0)
-    slope, ic, r, p, stderr  = stats.linregress(np.log(ns), np.log(errs[solvers[0]]))
+    slope, ic, r, p, stderr  = stats.linregress(np.log(N), np.log(errs[solvers[0]]))
     # print(f"y = {slope:4.2f} * x  {ic:+4.2f}")
     fig = plt.figure()
     ax = fig.add_subplot(311)
-    ax.set_xlabel(r'log(n)')
+    ax.set_xlabel(r'log(N)')
     ax.set_ylabel(r'log(e)')
     ax.set_title(f"y = {slope:4.2f} * x  {ic:+4.2f}")
     for solver in solvers:
-        ax.loglog(ns, errs[solver], '-x', label=f"{solver}")
+        ax.loglog(N, errs[solver], '-x', label=f"{solver}")
     ax.legend()
     ax = fig.add_subplot(312)
-    ax.set_xlabel(r'log(n)')
+    ax.set_xlabel(r'log(N)')
     ax.set_ylabel(r'niter')
-    ax.set_title(f"nall = {ns[-1]**d}")
+    ax.set_title(f"nall = {N[-1]}")
     # le premier est trop grand !!
     print(f"niters {niters}")
     for solver in solvers:
         if np.any(np.array(niters[solver]) != -1):
-            ax.plot(np.log(ns), niters[solver], '-x', label=f"{solver}")
+            ax.plot(np.log(N), niters[solver], '-x', label=f"{solver}")
     ax.legend()
     ax = fig.add_subplot(313)
-    ax.set_xlabel(r'log(n)')
+    ax.set_xlabel(r'log(N)')
     ax.set_ylabel(r't')
-    ax.set_title(f"nall = {ns[-1]**d}")
+    ax.set_title(f"dim = {g.dim}")
     # le premier est trop grand !!
     for solver in solvers:
-        ax.plot(np.log(ns[1:]), times[solver][1:], '-x', label=f"{solver}")
+        ax.plot(np.log(N[1:]), times[solver][1:], '-x', label=f"{solver}")
     ax.legend()
     plt.show()
 
 if __name__ == '__main__':
     # print("simfempy", simfempy.__version__)
-    ns = [5, 9, 17, 33, 65, 129, 257, 513, 1025]
-    # testerror(ns, bounds=[[0,1]], expr='cos(pi*x)')
-    testerror(ns[:-1], bounds=[[0,1], [0,1]], expr='cos(pi*x)*cos(pi*y)')
-    # testerror(ns[:-4], bounds=[[0,1], [0,1], [0,1]], expr='cos(pi*x)*cos(pi*y)*cos(pi*z)')
-    # err = test(n=[11], bounds=[[1,3]], expr='x*(1-x)+1', show=True)
-    # print(f"errl2={err}")
+    d = 2
+    if d==2:
+        ns = [np.array([3,3])]
+        for k in range(10): ns.append(2*ns[k]-1)
+        expr = 'cos(pi*x)*cos(pi*y)'
+    elif d==3:
+        ns = [np.array([3,3,3])]
+        for k in range(5): ns.append(2*ns[k]-1)
+        expr = 'cos(pi*x)*cos(pi*y)*cos(pi*z)'
+    elif d==4:
+        ns = [np.array([3,3,3,3])]
+        for k in range(4): ns.append(2*ns[k]-1)
+        expr = 'cos(pi*x0)*cos(pi*x1)*cos(pi*x2)*cos(pi*x3)'
+    testerror(ns[:-1], bounds=d*[[-1,1]], expr=expr)

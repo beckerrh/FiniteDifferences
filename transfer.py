@@ -31,7 +31,7 @@ def interpolate1(grid, gridold, uold):
     # show(grid, unew)
     return unew.ravel()
 #-----------------------------------------------------------------#
-def interpolate2(grid, gridold, uold):
+def interpolate(grid, gridold, uold):
     nold = gridold.n
     uold = uold.ravel()
     unew = np.zeros(grid.nall())
@@ -65,7 +65,7 @@ def testprolongation(ns, bounds, expr):
     print(f"u={u}")
     g = grid.Grid(ns[0], bounds=bounds)
     uold = u(g.coord())
-    fcts = ['interpolate2']
+    fcts = ['interpolate']
     times = {}
     for fct in fcts: times[fct] = []
     ns = ns[1:]
@@ -85,10 +85,10 @@ def testprolongation(ns, bounds, expr):
                 print(f"uold={uold.sum()}\n u=\n{unew.sum()}")
         uold = unew
     for fct in fcts:
-        plt.plot(np.log(N), times[fct], 'x-', label=fct)
+        plt.plot(np.log(N), np.log(times[fct]), 'x-', label=fct)
     plt.legend()
     plt.xlabel("log(n)")
-    plt.xlabel("t")
+    plt.ylabel("log(t)")
     plt.show()
 
 
@@ -111,6 +111,6 @@ if __name__ == '__main__':
 
     if test4d:
         ns = [np.array([3,3,5,3])]
-        for k in range(3): ns.append(2*ns[k]-1)
+        for k in range(4): ns.append(2*ns[k]-1)
         expr = 'x0+2*x1+3*x2+4*x3-x0*x2-pi*x3*x1 + pi**2*x0*x3'
         testprolongation(ns, bounds=4*[[-1,1]], expr=expr)

@@ -24,7 +24,8 @@ class Grid():
     def strides(self):
         strides = np.empty(self.dim, dtype=int)
         for i in range(self.dim):
-            strides[i] = int(np.prod(list(reversed(self.n))[:i-1]))
+            # print(f"i = {i} self.n[i+1:]={self.n[i+1:]}")
+            strides[i] = int(np.prod(self.n[i+1:]))
         return strides
 
     def x(self):

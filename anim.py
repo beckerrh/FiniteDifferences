@@ -44,5 +44,5 @@ for np_pale in np_pales:
     cercle = Cercle(fig.gca(), nb_pales=np_pale, rayon=3, omega=0.64, immersion=1.1)
     t = np.linspace(0, 2*np.pi, 111)
     anim = pltanim.FuncAnimation(fig, cercle, t, interval=60, blit=True, repeat=False)
-    anim.save(f"pales_{np_pale}.gif", writer='imagemagick', fps=60)
+    anim.save(f"out/pales_{np_pale}.gif", writer='imagemagick', fps=60)
 plt.show()

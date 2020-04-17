@@ -31,20 +31,28 @@ def interpolate1(grid, gridold, uold):
     # show(grid, unew)
     return unew.ravel()
 #-----------------------------------------------------------------#
-def interpolate(grid, gridold, uold):
-    nold = gridold.n
+def interpolate(gridf, gridc, uold, transpose=False):
+    nold = gridc.n
     uold = uold.ravel()
-    unew = np.zeros(grid.nall())
-    ind1d = [np.arange(nold[i]) for i in range(gridold.dim)]
+    if transpose:
+        unew = np.zeros(gridc.nall())
+        if uold.shape[0] != gridf.nall():
+            raise ValueError(f"Problem interpolate(transpose={transpose}) {uold.shape[0]} != {gridf.nall()}")
+    else:
+        unew = np.zeros(gridf.nall())
+        if uold.shape[0] != gridc.nall():
+            raise ValueError(f"Problem interpolate(transpose={transpose}) u.N = {uold.shape[0]} != {gridc.nall()} = grid.N")
+    ind1d = [np.arange(nold[i]) for i in range(gridc.dim)]
     mg = np.array(np.meshgrid(*ind1d, indexing='ij'))
-    stridesO = gridold.strides()
-    stridesN = grid.strides()
+    stridesO = gridc.strides()
+    stridesN = gridf.strides()
     # print(f"stridesO={stridesO} stridesN={stridesN}")
     iN = 2*np.einsum('i,i...->...', stridesN, mg)
     iO = np.einsum('i,i...->...', stridesO, mg)
-    unew[iN.ravel()] += uold[iO.ravel()]
-    for k in range(1,grid.dim+1):
-        inds, sts = tools.indsAndShifts(grid.dim, k=k)
+    if transpose: unew[iO.ravel()] += uold[iN.ravel()]
+    else: unew[iN.ravel()] += uold[iO.ravel()]
+    for k in range(1,gridf.dim+1):
+        inds, sts = tools.indsAndShifts(gridf.dim, k=k)
         # print(f"k={k} inds={inds} sts={sts}")
         for ind in inds:
             for st in sts:
@@ -54,7 +62,8 @@ def interpolate(grid, gridold, uold):
                     else:         mg2 = np.take(mg2, ind1d[ind[l]][:-1], axis=ind[l]+1)
                 iO = np.einsum('i,i...->...', stridesO, mg2)
                 iN = 2*np.einsum('i,i...->...', stridesN ,mg2)+stridesN[ind].dot(st)
-                unew[iN.ravel()] += 0.5**k*uold[iO.ravel()]
+                if transpose: unew[iO.ravel()] += 0.5**k*uold[iN.ravel()]
+                else: unew[iN.ravel()] += 0.5 ** k * uold[iO.ravel()]
     return unew
 
 #=================================================================#
@@ -74,7 +83,7 @@ def testprolongation(ns, bounds, expr):
         gold = g
         g = grid.Grid(n=n, bounds=bounds)
         N.append(g.nall())
-        args = "(grid = g, gridold = gold, uold=uold)"
+        args = "(gridf = g, gridc = gold, uold=uold)"
         for fct in fcts:
             t0 = time.time()
             unew  = eval(fct+args)

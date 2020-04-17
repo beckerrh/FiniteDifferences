@@ -85,7 +85,7 @@ def createMatrixDiff2d(grid):
     offsets.append(nx)
     A = scsp.diags(diagonals=diagonals, offsets=offsets)
     # print("A=\n", A.toarray())
-    return A.tocsr()
+    return A.tocsc()
 #-----------------------------------------------------------------#
 def createMatrixDiff(grid):
     """

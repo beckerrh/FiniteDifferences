@@ -1,6 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import matrix
+from strucfem import matrix
+
 
 #-----------------------------------------------------------------#
 def initialcondition(nx, a):

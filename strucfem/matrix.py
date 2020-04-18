@@ -1,10 +1,8 @@
 import numpy as np
 import scipy.sparse as scsp
-import grid, transfer
+from strucfem import grid, transfer, errors, solve
 import simfempy.tools.analyticalsolution as anasol
-import scipy.sparse.linalg as linalg
 import matplotlib.pyplot as plt
-import pyamg
 
 #-----------------------------------------------------------------#
 def interpolate(grid, uold):
@@ -36,8 +34,6 @@ def interpolate(grid, uold):
     # plt.clabel(cnt, cnt.levels, inline=True, fmt='%.1f', fontsize=10)
     # plt.show()
     return unew.ravel()
-
-
 #-----------------------------------------------------------------#
 def createMatrixDiff2d(grid):
     """
@@ -89,10 +85,11 @@ def createMatrixDiff2d(grid):
 #-----------------------------------------------------------------#
 def createMatrixDiff(grid):
     """
+    1+2*d stencil
     """
-    n, ds, dim, nall = grid.n, grid.dx, grid.dim, grid.nall()
-    sdiag = np.sum(2/ds**2)
-    soff = -1/ds**2
+    n, ds, dim, nall, vol = grid.n, grid.dx, grid.dim, grid.nall(), grid.volumeK()
+    sdiag = vol*np.sum(2/ds**2)
+    soff = -vol/ds**2
     diag = sdiag*np.ones(shape=n)
     dP, dM = np.empty(shape=(dim,*n)), np.empty(shape=(dim,*n))
     for i in range(dim):
@@ -123,89 +120,45 @@ def createMatrixDiff(grid):
     # print("A=\n", A.toarray())
     return A.tocsr()
 #-----------------------------------------------------------------#
+def dirichlet(grid, v, u):
+    x = grid.coord()
+    d = grid.dim
+    v = v.reshape(grid.n)
+    for i in range(d):
+        if grid.bdrycond[i][0] == 'dirichlet':
+            vs, xs = np.moveaxis(v, i, 0), np.moveaxis(x, i+1, 1)
+            vs[ 0] = u(xs[:, 0])
+        if grid.bdrycond[i][1] == 'dirichlet':
+            vs, xs = np.moveaxis(v, i, 0), np.moveaxis(x, i+1, 1)
+            vs[-1] = u(xs[:, -1])
+    return v.ravel()
+#-----------------------------------------------------------------#
 def createRhsVectorDiff(grid, u):
     """
     """
-    x = grid.coord()
-    d = grid.dim
+    x, d, v = grid.coord(), grid.dim, grid.volumeK()
     b = np.zeros(x[0].shape)
     for i in range(d):
-        b -= u.dd(i,i,x)
-    for i in range(d):
-        if grid.bdrycond[i][0] == 'dirichlet':
-            bs, xs = np.moveaxis(b, i, 0), np.moveaxis(x, i+1, 1)
-            bs[ 0] = u(xs[:, 0])
-        if grid.bdrycond[i][1] == 'dirichlet':
-            bs, xs = np.moveaxis(b, i, 0), np.moveaxis(x, i + 1, 1)
-            bs[-1] = u(xs[:, -1])
-    return b.ravel()
-#-----------------------------------------------------------------#
-def errorl2(grid, uh, u, compute_error=False):
-    """
-    """
-    x = grid.coord()
-    n = grid.nall()
-    errl2 = np.linalg.norm(uh-u(x).ravel())/np.sqrt(n)
-    if not compute_error: return errl2
-    return errl2, uh-u(x)
-#-----------------------------------------------------------------#
-def plot(grid, uh, u=None, plot_error=False):
-    """
-    """
-    x = grid.coord()
-    d = grid.dim
-    if d==1:
-        plt.plot(x.ravel(), uh, '-xb')
-        if plot_error:
-            if u is None: raise ValueError("Problem: need exact solution")
-            plt.plot(x.ravel(), u(x), '-r')
-        plt.show()
-    elif d==2:
-        x = grid.coord()
-        cnt = plt.contour(x[0], x[1], uh.reshape(grid.n))
-        plt.clabel(cnt, cnt.levels, inline=True, fmt='%.1f', fontsize=10)
-        plt.show()
-
+        b -= u.dd(i,i,x)*v
+    return dirichlet(grid, b, u)
 #=================================================================#
-def test(g, expr, show=False, solver='scsp', uold=None, gold=None):
+def test(g, expr, solver='scsp', uold=None, gold=None):
     for i in range(g.dim):
         g.bdrycond[i][0] = g.bdrycond[i][1] = 'dirichlet'
     A = createMatrixDiff(g)
-    u = anasol.AnalyticalSolution(g.dim, expr)
-    b = createRhsVectorDiff(g, u)
-    niter = -1
-    if solver == 'scsp':
-        uh = linalg.spsolve(A,b)
-    elif solver == 'pyamg':
-        if gold == None: u0 = np.zeros_like(b)
-        else: u0 = transfer.interpolate(g, gold, uold)
-        res = []
-        B = np.ones((A.shape[0], 1))
-        SA_build_args = {
-            'max_levels': 10,
-            'max_coarse': 10,
-            'coarse_solver': 'lu',
-            'symmetry': 'hermitian'}
-        # smooth = ('energy', {'krylov': 'cg'})
-        # strength = [('evolution', {'k': 2, 'epsilon': 0.2})]
-        presmoother = ('gauss_seidel', {'sweep': 'symmetric', 'iterations': 2})
-        postsmoother = ('gauss_seidel', {'sweep': 'symmetric', 'iterations': 2})
-        ml = pyamg.smoothed_aggregation_solver(A, B=B, **SA_build_args)
-        SA_solve_args = {'cycle': 'V', 'maxiter': 200, 'tol': 1e-10}
-        uh = ml.solve(b=b, x0=u0, residuals=res, **SA_solve_args)
-        # uh = pyamg.solve(A, b, verb=0, tol=1e-10, x0=u0, residuals=res)
-        niter = len(res)
+    uex = anasol.AnalyticalSolution(g.dim, expr)
+    b = createRhsVectorDiff(g, uex)
+    if gold == None:
+        u0 = np.zeros_like(b)
     else:
-        raise KeyError(f"Problem: unknown solver {solver}")
-    if show: plot(grid=g, uh=uh, u=u, plot_error=True)
-    return errorl2(grid=g, uh=uh, u=u), uh, niter
+        u0 = transfer.interpolate(gridf=g, gridc=gold, uold=uold)
+    u, t, iter = solve.solve(solver, A, b, x0=u0)
+    return errors.errorl2(grid=g, u=u, uex=uex), u, t, iter
 
 #=================================================================#
 def testerror(ns, bounds, expr):
     from scipy import stats
-    import time
-    d = len(bounds)
-    solvers = ['scsp', 'pyamg']
+    solvers = ['direct', 'pyamg']
     # solvers = ['scsp']
     errs, times, niters = {}, {}, {}
     times={}
@@ -214,16 +167,15 @@ def testerror(ns, bounds, expr):
     uold, gold = None, None
     N = []
     for i,n in enumerate(ns):
+        if i: uold, gold = u, g
         g = grid.Grid(n=n, bounds=bounds)
         N.append(g.nall())
         for solver in solvers:
-            t0 = time.time()
-            err, u, niter = test(g, expr=expr, show=False, solver=solver, uold=uold, gold=gold)
-            if solver == 'pyamg': uold, gold = u, g
+            err, u, t, niter = test(g, expr=expr, solver=solver, uold=uold, gold=gold)
+            # if solver == 'pyamg': uold, gold = u, g
             errs[solver].append(err)
             niters[solver].append(niter)
-            t1 = time.time()
-            times[solver].append(t1-t0)
+            times[solver].append(t)
     slope, ic, r, p, stderr  = stats.linregress(np.log(N), np.log(errs[solvers[0]]))
     # print(f"y = {slope:4.2f} * x  {ic:+4.2f}")
     fig = plt.figure()
@@ -254,12 +206,17 @@ def testerror(ns, bounds, expr):
     ax.legend()
     plt.show()
 
+#=================================================================#
 if __name__ == '__main__':
     # print("simfempy", simfempy.__version__)
-    d = 2
-    if d==2:
-        ns = [np.array([3,3])]
+    d = 3
+    if d==1:
+        ns = [np.array([3])]
         for k in range(10): ns.append(2*ns[k]-1)
+        expr = 'cos(pi*x)'
+    elif d==2:
+        ns = [np.array([3,4])]
+        for k in range(8): ns.append(2*ns[k]-1)
         expr = 'cos(pi*x)*cos(pi*y)'
     elif d==3:
         ns = [np.array([3,3,3])]

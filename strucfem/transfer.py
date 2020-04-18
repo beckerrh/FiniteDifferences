@@ -1,14 +1,34 @@
 import numpy as np
-import grid, tools
+from strucfem import grid, tools, plotgrid
 import simfempy.tools.analyticalsolution as anasol
 import matplotlib.pyplot as plt
 
+
 #-----------------------------------------------------------------#
-def show(grid, u):
-    x = grid.coord()
-    cnt = plt.contour(x[0], x[1], u)
-    plt.clabel(cnt, cnt.levels, inline=True, fmt='%.1f', fontsize=10)
-    plt.show()
+def tocell(grid, u):
+    uc = np.zeros(grid.n-1).ravel()
+    u = u.ravel()
+    # print(f"uc={uc}\nu={u}")
+    ind1d = [np.arange(grid.n[i]) for i in range(grid.dim)]
+    mg = np.array(np.meshgrid(*ind1d, indexing='ij'))
+    strides = grid.strides()
+    k = grid.dim
+    inds, sts = tools.indsAndShifts(grid.dim, k=k)
+    # print(f"k={k} inds={inds} sts={sts}\nmg={mg}\nuc={uc}\nu={u}")
+    for ind in inds:
+        for st in sts:
+            mg2 = mg.copy()
+            for l in range(k):
+                if st[l] == -1:
+                    mg2 = np.take(mg2, ind1d[ind[l]][1:], axis=ind[l] + 1)
+                else:
+                    mg2 = np.take(mg2, ind1d[ind[l]][:-1], axis=ind[l] + 1)
+            iN = np.einsum('i,i...->...', strides, mg2) + strides[ind].dot(st)
+            # print(f"iN={iN}")
+            uc += 0.5 ** k * u[iN.ravel()]
+    # print(f"uc={uc}\nu={u}")
+    return uc
+
 #-----------------------------------------------------------------#
 def interpolate1(grid, gridold, uold):
     nold = gridold.n
@@ -65,8 +85,7 @@ def interpolate(gridf, gridc, uold, transpose=False):
                 if transpose: unew[iO.ravel()] += 0.5**k*uold[iN.ravel()]
                 else: unew[iN.ravel()] += 0.5 ** k * uold[iO.ravel()]
     return unew
-
-#=================================================================#
+#-----------------------------------------------------------------#
 def testprolongation(ns, bounds, expr):
     import time
     d = len(bounds)
@@ -99,25 +118,48 @@ def testprolongation(ns, bounds, expr):
     plt.xlabel("log(n)")
     plt.ylabel("log(t)")
     plt.show()
+#-----------------------------------------------------------------#
+def testadjoint():
+    d = 2
+    gc = grid.Grid(d * [3], bounds=d * [[-1, 1]])
+    gf = grid.Grid(d * [5], bounds=d * [[-1, 1]])
+    uf = np.random.random(gf.nall())
+    uc = np.random.random(gc.nall())
+    uc2 = interpolate(gf, gc, uf, transpose=True)
+    uf2 = interpolate(gf, gc, uc)
+    print(f"uc2*uc = {uc2.dot(uc)} uf2*uf = {uf2.dot(uf)}")
+#-----------------------------------------------------------------#
+def testtocell(d=1):
+    g = grid.Grid(d * [3], bounds=d * [[-1, 1]])
+    expr = ''
+    for i in range(d): expr += f"{np.random.randint(low=1,high=9)}*x{i}+"
+    uex = anasol.AnalyticalSolution(d, expr[:-1])
+    u = uex(g.coord())
+    # print(f"grid = {g}\nuex={uex}\nu={u}")
+    uc = tocell(g, u)
+    fig = plt.figure()
+    ax = fig.add_subplot(2, 1, 1)
+    plotgrid.plot(g, ax=ax, u=u, title=f"d={d}")
+    ax = fig.add_subplot(2, 1, 2)
+    plotgrid.plot(g, ax=ax, u=uc, title=f"d={d}", celldata=True)
+    plt.show()
 
-
+#=================================================================#
 if __name__ == '__main__':
-    # print("simfempy", simfempy.__version__)
-    # ns = [5, 9, 17, 33, 65, 129, 257, 513, 1025]
+    testadjoint()
+    testtocell(d=2)
 
-    test2d, test3d, test4d = False, False, True
+    test2d, test3d, test4d = False, False, False
     if test2d:
         ns = [np.array([5,3])]
-        for k in range(1): ns.append(2*ns[k]-1)
+        for k in range(3): ns.append(2*ns[k]-1)
         expr = 'x+pi*y + 7*x*y'
         testprolongation(ns, bounds=2*[[-1,1]], expr=expr)
-
     if test3d:
         ns = [np.array([3,3,5])]
         for k in range(6): ns.append(2*ns[k]-1)
         expr = 'x+2*y+3*z-x*y-pi*x*z + pi**2*y*z'
         testprolongation(ns, bounds=3*[[-1,1]], expr=expr)
-
     if test4d:
         ns = [np.array([3,3,5,3])]
         for k in range(4): ns.append(2*ns[k]-1)

@@ -6,10 +6,10 @@ from strucfem import transfer, grid
 def errorl2(grid, u, uex, compute_error=False):
     """
     """
-    x, xc, d, u = grid.coord(), grid.coordCenters(), np.sqrt(grid.volumeK()), u.ravel()
+    x, xc, d, u = grid.coord(), grid.coordCenters(), np.sqrt(1/grid.nall()), u.ravel()
     errl2 = d*np.linalg.norm(u-uex(x).ravel())
     uc = transfer.tocell(grid,u)
-    # print(f"u={u} uc={uc}")
+    # print(f"grid={grid} volK*N={grid.volumeK()*grid.nall()}")
     # print(f"x = {x} xc={xc} uexc={uex(xc)}")
     errl2 += d*np.linalg.norm(uc-uex(xc).ravel())
     if not compute_error: return errl2

@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.sparse.linalg as splinalg
 import simfempy.tools.analyticalsolution as anasol
-from strucfem import matrix, grid, transfer
+from strucfem import matrix, grid, transfer, plotgrid
 
 
 def dirichletzero(grid, u):
@@ -18,13 +18,13 @@ def dirichletzero(grid, u):
 #=================================================================#
 class MultiGrid:
     def __init__(self, grids, matrices):
-        self.rtol, self.gtol, self.maxiter = 1e-10, 1e-14, 2
+        self.rtol, self.gtol, self.maxiter = 1e-10, 1e-14, 10
         assert len(grids) == len(matrices)
         self.grids = grids
         self.matrices = matrices
         self.minlevel, self.maxlevel, self.cycle = 0, len(grids)-1, 1
         self.omega = 0.6
-        self.maxiterpre, self.maxiterpost = 0,1
+        self.maxiterpre, self.maxiterpost = 2,2
         for grid in grids:
             print(f"grid = {grid}")
         for matrix in matrices:
@@ -70,11 +70,11 @@ class MultiGrid:
         self.u[0] = u
         # for f,u in zip(self.f, self.u):
         #     print(f"f={f.shape} u={u.shape}")
-        matrix.plot(self.grids[0], self.u[0], title=f"iter = 0")
+        plotgrid.plot(self.grids[0], u=self.u[0], title=f"iter = 0")
         for iter in range(1,self.maxiter+1):
             res = self.step(0, self.u, self.f, self.v)
             print(f"mgiter = {iter:3d} res={res:12.4e}")
-            matrix.plot(self.grids[0], self.u[0], title=f"iter = {iter}")
+            plotgrid.plot(self.grids[0], u=self.u[0], title=f"iter = {iter}")
             if res < self.gtol: return self.u[0]
     def step(self, l, u, f, v):
         print(f"level = {l} maxlevel = {self.maxlevel}")
@@ -105,12 +105,12 @@ class MultiGrid:
 
 #=================================================================#
 if __name__ == '__main__':
-    d = 1
+    d = 2
     ns = [np.array(d*[3])]
     for k in range(2): ns.append(2 * ns[k] - 1)
-    expr = 'cos(pi*x)*cos(pi*y)'
-    expr = '(1-x**2)*(1-y**2)'
-    expr = '(1-x**2)'
+    expr = ''
+    for i in range(d): expr += f"(1-x{i}**2)*"
+    expr = expr[:-1]
     bounds=d*[[-1,1]]
     grids, matrices = [], []
     for n in reversed(ns):

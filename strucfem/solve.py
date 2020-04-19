@@ -23,7 +23,7 @@ def solve(name, A, b, x0=None):
         presmoother = ('gauss_seidel', {'sweep': 'symmetric', 'iterations': 2})
         postsmoother = ('gauss_seidel', {'sweep': 'symmetric', 'iterations': 2})
         ml = pyamg.smoothed_aggregation_solver(A, B=B, **SA_build_args)
-        SA_solve_args = {'cycle': 'V', 'maxiter': 200, 'tol': 1e-14}
+        SA_solve_args = {'cycle': 'V', 'maxiter': 200, 'tol': 1e-10}
         x, iter = ml.solve(b=b, x0=x0, residuals=res, **SA_solve_args), len(res)
         # uh = pyamg.solve(A, b, verb=0, tol=1e-10, x0=u0, residuals=res)
     else:

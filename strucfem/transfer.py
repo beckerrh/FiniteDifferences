@@ -51,15 +51,17 @@ def interpolate1(grid, gridold, uold):
     # show(grid, unew)
     return unew.ravel()
 #-----------------------------------------------------------------#
-def interpolate(gridf, gridc, uold, transpose=False):
+def interpolate(gridf, gridc, uold, transpose=False, unew=None):
     nold = gridc.n
     uold = uold.ravel()
     if transpose:
-        unew = np.zeros(gridc.nall())
+        if unew is None: unew = np.zeros(gridc.nall())
+        else: unew.shape = gridc.nall()
         if uold.shape[0] != gridf.nall():
-            raise ValueError(f"Problem interpolate(transpose={transpose}) {uold.shape[0]} != {gridf.nall()}")
+            raise ValueError(f"Problem interpolate(transpose={transpose}) {uold.shape[0]} != {gridf.nall()} ({gridc.nall()})")
     else:
-        unew = np.zeros(gridf.nall())
+        if unew is None: unew = np.zeros(gridf.nall())
+        else: unew.shape = gridf.nall()
         if uold.shape[0] != gridc.nall():
             raise ValueError(f"Problem interpolate(transpose={transpose}) u.N = {uold.shape[0]} != {gridc.nall()} = grid.N")
     ind1d = [np.arange(nold[i]) for i in range(gridc.dim)]

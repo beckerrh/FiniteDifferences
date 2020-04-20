@@ -3,13 +3,15 @@ import numpy as np
 import scipy.sparse.linalg as splinalg
 import pyamg
 import simfempy.tools.analyticalsolution as anasol
-from strucfem import grid, matrix, errors
+from strucfem import grid, matrix, errors, multigrid
 
 #-----------------------------------------------------------------#
-def solve(name, A, b, x0=None):
+def solve(name, A, b, x0=None, grid=None):
     t0 = time.time()
     if name == "direct":
         x, iter = splinalg.spsolve(A, b), -1
+    elif name == "mg":
+        x, iter = multigrid.solve(A, b, grid, x0), -1
     elif name == 'pyamg':
         res = []
         B = np.ones((A.shape[0], 1))
@@ -42,7 +44,7 @@ def test(solvers, d=1):
     A = matrix.createMatrixDiff(g)
     b = matrix.createRhsVectorDiff(g, uex)
     for solver in solvers:
-        u, t, iter = solve(solver, A, b)
+        u, t, iter = solve(solver, A, b, g)
         err = errors.errorl2(g, u, uex)
         print(f"grid={g}\nsolver = {solver}\terr = {err:10.4e}\t time = {t}\t iter = {iter}")
 #=================================================================#

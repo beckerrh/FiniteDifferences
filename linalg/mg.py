@@ -19,7 +19,7 @@ class MultiGrid:
         self.grids, self.matrices = driver.getMeshesAndMatrices()
         assert len(self.grids) == len(self.matrices)
         self.driver = driver
-        self.rtol, self.gtol, self.maxiter = 1e-10, 1e-15, 100
+        self.rtol, self.gtol, self.maxiter = 1e-12, 1e-15, 100
         self.minlevel, self.maxlevel, self.cycle = 0, len(self.grids)-1, 1
         self.maxiterpre, self.maxiterpost = 2,2
         if 'maxlevel' in kwargs:
@@ -52,7 +52,6 @@ class MultiGrid:
     def residual(self, l, r, u , f):
         r[:] = f[:]
         r -=  self.matrices[l].dot(u)
-        self.driver.dirichletzero(self.grids[l], r)
         return r
     def update(self, l , u, v):
         u += v
@@ -99,7 +98,10 @@ class FdDriver:
         import sympy
         levelmax=10000
         for i in n:
-            levelmax= min(levelmax, sympy.factorint(int(i-1))[2])
+            try:
+                levelmax= min(levelmax, sympy.factorint(int(i-1))[2])
+            except:
+                levelmax=1
         return levelmax
     def _jacobi(self, matrix, omega=0.8):
         D = 0.8/matrix.diagonal()
@@ -152,15 +154,16 @@ if __name__ == '__main__':
     from strucfem import matrix, grid, plotgrid
     import matplotlib.pyplot as plt
 
-    d, l = 2, 5
+    d, l = 2, 2
     expr = ''
     for i in range(d): expr += f"log(1+x{i}**2)*"
     expr = expr[:-1]
+    # expr = '3+x1+x0'
     uex = anasol.AnalyticalSolution(d, expr)
-
     n = np.array(d*[2**l+1])
     # n[0] = 4**l+1
     grid = grid.Grid(n=n, bounds=d*[[1,3]])
+    print(f"uex = {uex} grid={grid}")
     b = matrix.createRhsVectorDiff(grid, uex)
     fd = FdDriver(grid)
     mg = MultiGrid(fd)

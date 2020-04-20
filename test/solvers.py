@@ -12,7 +12,7 @@ def test(d=1):
     for i in range(d): expr += f"cos(pi*x{i})+"
     expr = expr[:-1]
     uex = anasol.AnalyticalSolution(d, expr)
-    solvers = ["direct", "pyamg"]
+    solvers = ["direct", "pyamg", "mg"]
     N, errs, its, ts = [], {}, {}, {}
     for solver in solvers:
         errs[solver], its[solver], ts[solver] = [], [], []
@@ -26,7 +26,7 @@ def test(d=1):
         if gold == None: u0 = np.zeros_like(b)
         else: u0 = transfer.interpolate(gridf=g, gridc=gold, uold=uold)
         for solver in solvers:
-            u, t, it = solve.solve(solver, A, b, x0=u0)
+            u, t, it = solve.solve(solver, A, b, x0=u0, grid=g)
             err = errors.errorl2(g, u, uex)
             errs[solver].append(err)
             its[solver].append(it)

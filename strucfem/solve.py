@@ -11,7 +11,9 @@ def solve(name, A, b, x0=None, grid=None):
     if name == "direct":
         x, iter = splinalg.spsolve(A, b), -1
     elif name == "mg":
-        x, iter = multigrid.solve(A, b, grid, x0), -1
+        assert grid is not None
+        x, res = multigrid.solve(A, b, grid=grid, x0=x0, verbose=False)
+        iter = len(res)
     elif name == 'pyamg':
         res = []
         B = np.ones((A.shape[0], 1))
@@ -44,10 +46,11 @@ def test(solvers, d=1):
     A = matrix.createMatrixDiff(g)
     b = matrix.createRhsVectorDiff(g, uex)
     for solver in solvers:
-        u, t, iter = solve(solver, A, b, g)
+        u, t, iter = solve(solver, A, b, grid=g)
         err = errors.errorl2(g, u, uex)
         print(f"grid={g}\nsolver = {solver}\terr = {err:10.4e}\t time = {t}\t iter = {iter}")
 #=================================================================#
 if __name__ == '__main__':
-    solvers = ["direct", "pyamg"]
-    test(solvers, d=3)
+    solvers = ["direct", "pyamg", "mg"]
+    solvers = ["direct", "mg"]
+    test(solvers, d=2)

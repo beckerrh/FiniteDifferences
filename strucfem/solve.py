@@ -1,5 +1,6 @@
 import time
 import numpy as np
+import scipy as sp
 import scipy.sparse.linalg as splinalg
 import pyamg
 import simfempy.tools.analyticalsolution as anasol
@@ -15,6 +16,8 @@ def solve(name, A, b, x0=None, grid=None):
         x, res = multigrid.solve(A, b, grid=grid, x0=x0, verbose=False)
         iter = len(res)
     elif name == 'pyamg':
+        import warnings
+        warnings.simplefilter("ignore", sp.sparse.SparseEfficiencyWarning)
         res = []
         B = np.ones((A.shape[0], 1))
         SA_build_args = {
@@ -52,5 +55,5 @@ def test(solvers, d=1):
 #=================================================================#
 if __name__ == '__main__':
     solvers = ["direct", "pyamg", "mg"]
-    solvers = ["direct", "mg"]
+    # solvers = ["direct", "mg"]
     test(solvers, d=2)

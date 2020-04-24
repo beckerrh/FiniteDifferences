@@ -118,7 +118,7 @@ def createMatrixDiff(grid):
         offsets.append(stride)
     A = scsp.diags(diagonals=diagonals, offsets=offsets)
     # print("A=\n", A.toarray())
-    return A.tocsr()
+    return A
 #-----------------------------------------------------------------#
 def dirichlet(grid, v, u):
     x = grid.coord()

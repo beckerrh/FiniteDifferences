@@ -5,21 +5,24 @@ from strucfem import matrix, grid, errors, solve, transfer
 
 #-----------------------------------------------------------------#
 def test(d=1):
-    n = np.random.randint(low=3,high=5, size=d)
+    n = np.random.randint(low=3,high=10, size=d)
     n = 3*np.ones(d, dtype=int)
-    bounds = d*[[-1,1]]
+    bounds = d*[np.array([-1,1])]
+    if d>1: bounds[-1] *= 100
     expr = ''
     for i in range(d): expr += f"cos(pi*x{i})+"
     expr = expr[:-1]
     uex = anasol.AnalyticalSolution(d, expr)
     solvers = ["direct", "pyamg", "mg"]
+    solvers = ["pyamg", "mg"]
     N, errs, its, ts = [], {}, {}, {}
     for solver in solvers:
         errs[solver], its[solver], ts[solver] = [], [], []
     gold = None
-    for k in range(2*(5-d)):
+    while(1):
         n = 2 * n - 1
         g = grid.Grid(n=n, bounds=bounds)
+        if g.nall()>2*1e6 or np.max(g.dx)<1e-3: break
         N.append(g.nall())
         A = matrix.createMatrixDiff(g)
         b = matrix.createRhsVectorDiff(g, uex)
@@ -59,4 +62,6 @@ def test(d=1):
 
 #=================================================================#
 if __name__ == '__main__':
-    for d in range(1,4): test(d=d)
+    for d in range(1,5):
+        print(f"dimension = {d}")
+        test(d=d)

@@ -12,10 +12,12 @@ def plot(grid, **kwargs):
     if 'title' in kwargs: title = kwargs.pop('title')
     if 'ax' in kwargs: ax = kwargs['ax']
     if 'celldata' in kwargs: celldata = kwargs.pop('celldata')
-    if ax == None: ax = plt.gca()
+    d = grid.dim
+    if ax == None:
+        if d==3: ax = plt.gca(projection='3d')
+        else: ax = plt.gca()
     if celldata: x = grid.coordCenters()
     else: x = grid.coord()
-    d = grid.dim
     ax.set_title(title)
     u = u.reshape(x[0].shape)
     if x[0].shape != u.shape:
@@ -32,15 +34,27 @@ def plot(grid, **kwargs):
         if u is None:
             ax.plot(x[0], x[1], marker='x', color='r', linestyle='none')
         else:
+            ax.plot(x[0], x[1], marker='x', color='r', linestyle='none')
             cnt = ax.contour(*x, u)
             ax.clabel(cnt, cnt.levels, inline=True, fmt='%.1f', fontsize=10)
     elif d==3:
         if u is None:
             ax.scatter(x[0], x[1], x[2], color='r')
         else:
-            raise ValueError(f"Problem not written")
+            from skimage.measure import marching_cubes_lewiner
+            verts, faces, _, _ = marching_cubes_lewiner(u, np.mean(u), spacing=(0.1, 0.1, 0.1))
+            ax.plot_trisurf(verts[:, 0], verts[:, 1], faces, verts[:, 2], cmap='Spectral', lw=1)
+        # else:
+        #     import pyvista as pv
+        #     grid = pv.StructuredGrid(x[0], x[1], x[2])
+        #     grid["U"] = u
+        #     contours = grid.contour([np.mean(u)])
+        #     pv.set_plot_theme('document')
+        #     p = pv.Plotter()
+        #     p.add_mesh(contours, scalars=contours.points[:, 2], show_scalar_bar=False)
+        #     p.show()
     else:
-        raise ValueError(f"Problem not written: plot in d={d}")
+        raise ValueError(f"Not written: plot in d={d}")
 
     if not 'ax' in kwargs: plt.show()
 #=================================================================#

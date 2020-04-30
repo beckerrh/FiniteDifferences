@@ -10,7 +10,7 @@ from strucfem import grid, matrix, errors, multigrid
 def solve(name, A, b, x0=None, grid=None):
     t0 = time.time()
     if name == "direct":
-        x, iter = splinalg.spsolve(A, b), -1
+        x, iter = splinalg.spsolve(A.tocsc(), b), -1
     elif name == "mg":
         assert grid is not None
         x, res = multigrid.solve(A, b, grid=grid, x0=x0, verbose=False)

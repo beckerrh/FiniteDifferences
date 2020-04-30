@@ -30,6 +30,7 @@ class Grid():
         for i in range(self.dim):
             # print(f"i = {i} self.n[i+1:]={self.n[i+1:]}")
             strides[i] = int(np.prod(self.n[i+1:]))
+            # strides[i] = int(np.prod(list(reversed(self.n))[i+1:]))
         return strides
     def x(self):
         x = []

@@ -1,30 +1,37 @@
 import numpy as np
 import scipy as sp
+import pandas as pd
 import time
 import scipy.sparse.linalg as splinalg
-from linalg import update
+from linalg import update, gaussseidel
+from strucfem import transfer
 
+#=================================================================#
+def getljac(matrix, grid, d):
+    ofs = matrix.offsets
+    stri = grid.strides()[d]
+    ind = 3 * [0]
+    ind[0] = np.nonzero(ofs==0)[0][0]
+    ind[1] = np.nonzero(ofs==stri)[0][0]
+    ind[2] = np.nonzero(ofs==-stri)[0][0]
+    band = sp.sparse.dia_matrix((matrix.data[ind], ofs[ind]), shape=matrix.shape)
+    # np.savetxt(f"lgs_{grid.nall()}_band_{uof}.txt", band.toarray(), fmt="%6.2f")
+    lu = splinalg.splu(band.tocsc())
+    return splinalg.LinearOperator(matrix.shape, lu.solve)
 #=================================================================#
 def getlgs(matrix, grid, d):
     ofs = matrix.offsets
-    uofs = np.unique(np.abs(ofs))
-    uofs = uofs[(uofs!=0)]
-    strides = grid.strides()
-    if sorted(uofs) != sorted(grid.strides()): raise KeyError(f"nonmatching uofs = {uofs} strides={grid.strides()}")
-    # np.savetxt(f"lgs_{grid.nall()}_matrix.txt", matrix.toarray(), fmt="%6.2f")
-    for uof in uofs:
-        if uof != strides[d]: continue
-        ind = 3*[0]
-        for i in range(len(ofs)):
-            if ofs[i] == 0: ind[0] = i
-            elif ofs[i] == uof: ind[1] = i
-            elif ofs[i] == -uof: ind[2] = i
-        # print("uof", uof, "ind", ind)
-        # print("matrix.data[ind]", matrix.data[ind])
-        band = sp.sparse.dia_matrix((matrix.data[ind], ofs[ind]), shape=matrix.shape)
-        # np.savetxt(f"lgs_{grid.nall()}_band_{uof}.txt", band.toarray(), fmt="%6.2f")
-        lu = splinalg.splu(band.tocsc())
-        return splinalg.LinearOperator(matrix.shape, lu.solve)
+    stri = grid.strides()[d]
+    ind = []
+    ind.append(np.nonzero(ofs==stri)[0][0])
+    for i in range(len(ofs)):
+        if ofs[i]<= 0:
+            ind.append(i)
+    # print(f" ofs = {ofs} ind = {ind}")
+    band = sp.sparse.dia_matrix((matrix.data[ind], ofs[ind]), shape=matrix.shape)
+    # np.savetxt(f"lgs_{grid.nall()}_band_{uof}.txt", band.toarray(), fmt="%6.2f")
+    lu = splinalg.splu(band.tocsc())
+    return splinalg.LinearOperator(matrix.shape, lu.solve)
 
 #=================================================================#
 class MultiGrid:
@@ -50,7 +57,10 @@ class MultiGrid:
             print(f"{self.__class__.__name__} finished\n total = {tmin:3d}[m] {tsec:4.1f}[s]")
             for k,v in rel.items(): print(f"{k:12s} {v:8.2f} %")
     def __init__(self, driver, **kwargs):
+        self.timer = {'cmat': 0, 'csmooth': 0, 'solve': 0, 'smooth':0, 'transfer': 0}
+        t0 = time.time()
         self.grids, self.matrices = driver.getMeshesAndMatrices()
+        self.timer['cmat'] += time.time()-t0
         if 'verbose' in kwargs: self.verbose=kwargs.pop('verbose')
         else: self.verbose=False
         assert len(self.grids) == len(self.matrices)
@@ -63,12 +73,13 @@ class MultiGrid:
             self.f.append(driver.newVector(grid))
             self.u.append(driver.newVector(grid))
             self.v.append(driver.newVector(grid))
+        t0 = time.time()
         self.prec = []
         for matrix, grid in zip(self.matrices, self.grids):
             self.prec.append(driver.newSmoothers(matrix,grid))
             self.update.append(update.Update(matrix))
         self.lu = driver.newCoarseSolver(self.matrices[self.maxlevel])
-        self.timer = {'solve': 0, 'smooth':0, 'transfer': 0}
+        self.timer['csmooth'] += time.time() - t0
     def smoothpre(self, l, u, f, r): return self.smooth(l, u, f, r)
     def smoothpost(self, l, u, f, r): return self.smooth(l, u, f, r)
     def smoothcoarse(self, l, u, f, r):
@@ -134,7 +145,7 @@ class MultiGrid:
             if l == self.minlevel: res = np.linalg.norm(v[l])
                 # print(f"l = {l} res={res} f = {np.linalg.norm(f[l])} u = {np.linalg.norm(u[l])}")
             t0 = time.time()
-            self.driver.restrict(self.grids[l], self.grids[l+1], f[l+1], v[l])
+            self.driver.restrict(l, self.grids[l], self.grids[l+1], f[l+1], v[l])
             self.timer['transfer'] += time.time()-t0
             self.driver.dirichletzero(self.grids[l+1], f[l+1])
             u[l+1].fill(0)
@@ -142,7 +153,7 @@ class MultiGrid:
                 self.step(l+1, u, f, v)
             # v[l].fill(0)
             t0 = time.time()
-            self.driver.prolongate(self.grids[l], self.grids[l+1], v[l], u[l+1])
+            self.driver.prolongate(l, self.grids[l], self.grids[l+1], v[l], u[l+1])
             self.timer['transfer'] += time.time()-t0
             # self.driver.dirichletzero(self.grids[l], v[l])
             self.update[l].update(u[l], v[l], f[l])
@@ -154,11 +165,11 @@ class MultiGrid:
 #=================================================================#
 class FdDriver:
     def __repr__(self):
-        return f"{self.smoothers}"
+        return f"{''.join(self.smoothers)}"
     def __init__(self, gridf, A=None, **kwargs):
         from strucfem import matrix, grid
-        if 'verbose' in kwargs: verbose=kwargs.pop('verbose')
-        else: verbose=False
+        if 'verbose' in kwargs: self.verbose=kwargs.pop('verbose')
+        else: self.verbose=False
         n = gridf.n
         maxlevelgrids = self._getmaxlevelgrids(n)
         if 'maxlevel' in kwargs:
@@ -167,19 +178,22 @@ class FdDriver:
             else: self.maxlevel = min(self._getmaxlevelmg(-maxlevel, gridf.nall(), gridf.dim), maxlevelgrids-1)
         else:
             self.maxlevel = maxlevelgrids-1
-        if verbose: print(f"maxlevelgrids = {maxlevelgrids} maxlevel = {self.maxlevel} nfine = {gridf.nall()}")
+        if self.verbose: print(f"maxlevelgrids = {maxlevelgrids} maxlevel = {self.maxlevel} nfine = {gridf.nall()}")
         self.grids, self.matrices = [], []
         self.grids.append(gridf)
         for l in range(self.maxlevel):
             n = (n-1)//2+1
             self.grids.append(grid.Grid(n=n, bounds=gridf.bounds))
+        if self.verbose: t0 = time.time()
         for i,grid in enumerate(self.grids):
             if i==0 and A is not None: self.matrices.append(A)
             else: self.matrices.append(matrix.createMatrixDiff(grid))
+        if self.verbose: print(f"matrix {time.time()-t0:8.2f}")
         if 'smoothers' in kwargs: self.smoothers=kwargs.pop('smoothers')
         else: raise KeyError(f"please give list of smoother")
         self.rhomat = np.abs(splinalg.eigs(self.matrices[-1], k=1)[0][0])
-        if verbose: print(f"self.rhomat = {self.rhomat}")
+        if self.verbose: print(f"self.rhomat = {self.rhomat}")
+        self.intsimp = transfer.InterpolateSimple(self.grids)
 
     def _getmaxlevelgrids(self, n):
         import sympy
@@ -200,9 +214,11 @@ class FdDriver:
     def _smooth_jac(self, matrix, grid, omega=0.8):
         D = omega/matrix.diagonal()
         return splinalg.LinearOperator(matrix.shape, lambda x: D*x)
-    def _smooth_gs(self, matrix, grid, omega=0.8):
+    def _smooth_gssp(self, matrix, grid, omega=0.8):
         lu= splinalg.splu(sp.sparse.tril(matrix).tocsc())
         return splinalg.LinearOperator(matrix.shape, lambda x: omega*lu.solve(x))
+    def _smooth_gs(self, matrix, grid, omega=0.8):
+        return gaussseidel.GaussSeidel(matrix, omega)
     def _smooth_ilu(self, matrix, grid, fill_factor=1, omega=0.1):
         d = omega*self.rhomat
         # d = 10*self.rhomat*h
@@ -210,6 +226,11 @@ class FdDriver:
         # print(f"h = {h} d={d}")
         ilu = splinalg.spilu((matrix+d*sp.sparse.identity(matrix.shape[0])).tocsc(), fill_factor=fill_factor)
         return splinalg.LinearOperator(matrix.shape, ilu.solve)
+    def _smooth_ljac(self, matrix, grid, omega=1):
+        lus = []
+        for d in range(grid.dim):
+            lus.append(getljac(matrix=matrix, grid=grid, d=d))
+        return lus
     def _smooth_lgs(self, matrix, grid, omega=1):
         lus = []
         for d in range(grid.dim):
@@ -227,11 +248,14 @@ class FdDriver:
         # print(f"smoothers = {len(smoothers)}")
         return smoothers
     def newSmoother(self, smoother, matrix, grid):
-        if smoother == 'jac': return self._smooth_jac(matrix, grid)
-        elif smoother == 'gs': return self._smooth_gs(matrix, grid)
-        elif smoother == 'lgs': return self._smooth_lgs(matrix, grid)
-        elif smoother == 'ilu': return self._smooth_ilu(matrix, grid)
-        else: raise ValueError(f"unknown smoother {smoother}")
+        fct = "self._smooth_"+smoother+"(matrix, grid)"
+        try: return eval(fct)
+        except: raise KeyError(f"unknown smoothe {smoother}")
+        # if smoother == 'jac': return self._smooth_jac(matrix, grid)
+        # elif smoother == 'gs': return self._smooth_gs(matrix, grid)
+        # elif smoother == 'lgs': return self._smooth_lgs(matrix, grid)
+        # elif smoother == 'ilu': return self._smooth_ilu(matrix, grid)
+        # else: raise ValueError(f"unknown smoother {smoother}")
     def newCoarseSolver(self, matrix):
         return splinalg.factorized(matrix.tocsc())
     def dirichletzero(self, grid, r):
@@ -245,12 +269,12 @@ class FdDriver:
                 np.moveaxis(r, i, 0)[-1] = 0
         r.shape = -1
         return r
-    def restrict(self, gridf, gridc, v, u):
-        from strucfem import transfer
+    def restrict(self, l, gridf, gridc, v, u):
+        return self.intsimp.interpolate(level=l, gridf=gridf, gridc=gridc, uold=u, unew=v, transpose=True)
         v.fill(0)
         return transfer.interpolate(gridf=gridf, gridc=gridc, uold=u, unew=v, transpose=True)
-    def prolongate(self, gridf, gridc, v, u):
-        from strucfem import transfer
+    def prolongate(self, l, gridf, gridc, v, u):
+        return self.intsimp.interpolate(level=l, gridf=gridf, gridc=gridc, uold=u, unew=v)
         v.fill(0)
         return transfer.interpolate(gridf=gridf, gridc=gridc, unew=v, uold=u)
 
@@ -261,7 +285,7 @@ if __name__ == '__main__':
     from strucfem import matrix, grid, plotgrid
     import matplotlib.pyplot as plt
 
-    d, l = 3, 6
+    d, l = 2, 2
     expr = ''
     for i in range(d): expr += f"log(1+x{i}**2)*"
     expr = expr[:-1]
@@ -269,18 +293,49 @@ if __name__ == '__main__':
     uex = anasol.AnalyticalSolution(d, expr)
     n = np.array(d*[2**l+1])
     # n = 2**(l-2)*np.array([2,16,2])+1
-    bounds = d*[[1,30]]
-    bounds = 3*[[-1,1]]
-    bounds[0] *= 100
-    bounds[2] *= 10
+    bounds = np.tile(np.array([-1,1]),d).reshape(d,2)
+    # print(f"bounds={bounds}")
+    # bounds[2] *= 100
+    # bounds[2] *= 100
+    # print(f"bounds={bounds}")
     grid = grid.Grid(n=n, bounds=bounds)
-    print(f"uex = {uex} n={grid.n} n={grid.nall()}")
+    print(f"uex = {uex} n={grid.n} n={grid.nall()} dx={grid.dx}")
     b = matrix.createRhsVectorDiff(grid, uex)
-    smoothers = ['lgs', 'jac', 'ilu', 'gs']
-    smoothers = ['lgs']
-    # fd = FdDriver(grid, verbose=True, smoothers=smoothers, maxlevel=-10000)
-    fd = FdDriver(grid, verbose=True, smoothers=smoothers)
-    mg = MultiGrid(fd, verbose=True)
-    u,res = mg.solve(b)
+    smootherss = []
+    smootherss.append(['jac'])
+    # smootherss.append(['gssp'])
+    smootherss.append(['gs'])
+    # smootherss.append(['ilu'])
+    # smootherss.append(['ljac'])
+    # smootherss.append(['lgs'])
+    times, smooth, niters = {}, {}, {}
+    for smoothers in smootherss:
+        t0 = time.time()
+        # fd = FdDriver(grid, verbose=True, smoothers=smoothers, maxlevel=-10000)
+        fd = FdDriver(grid, verbose=True, smoothers=smoothers)
+        mg = MultiGrid(fd, verbose=True)
+        u,res = mg.solve(b)
+        name = ''.join(smoothers)
+        times[name] = time.time()-t0
+        smooth[name] = mg.timer['smooth']
+        niters[name] = len(res)
+    # print(np.array(niters.values()))
+    df = pd.DataFrame.from_dict(niters, orient='index')
+    df.to_csv("smoothertest.txt", header=False)
+    # print(f" df = {df}")
+    # np.savetxt("smoothertest.txt", np.array(niters.values()))
+    y_pos = np.arange(len(smootherss))
+    fig, ax = plt.subplots()
+    width = 0.4
+    # print("smooth.values()", smooth.values())
+    ax.barh(y_pos, times.values(), width, color='g', label='total')
+    ax.barh(y_pos+width, smooth.values(), width, color='r', label='smooth')
+    ax.set(yticks=y_pos + width, yticklabels=times.keys(), ylim=[2 * width - 1, len(smootherss)])
+    ax.invert_yaxis()  # labels read top-to-bottom
+    ax.set_xlabel('t [s]')
+    ax.set_title('Smoother compare')
+    ax.legend()
+    plt.show()
+
     # plotgrid.plot(grid, u=u)
     # plt.show()

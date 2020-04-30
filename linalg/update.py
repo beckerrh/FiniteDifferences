@@ -7,7 +7,7 @@ class Update:
         # print(f"np.shares_memory(matrix,self.matrix) = {np.shares_memory(matrix.data,self.matrix.data)}")
         n = matrix.shape[0]
         self.r, self.Aw = np.zeros(n), np.zeros_like(n)
-        self.omegamax, self.omegamin = 10, 0.1
+        self.omegamax, self.omegamin = 1000, 0.1
     def update(self, u, w, f, r=None):
         """
         min |f- A(u+omega*w)| --> omega = 2 * r.T*Aw / |Aw|^2
@@ -25,7 +25,7 @@ class Update:
         omega = w.dot(r)/w.dot(Aw)
         omega = max(min(omega,self.omegamax),self.omegamin)
         resnew2 = resold2 - 2*omega*r.dot(Aw) + omega**2*Aw.dot(Aw)
-        print(f"{smooth:2s}omega = {omega:6.2f} omega2 = {omega2:6.2f} resnew2/resold2={resnew2/resold2:5.2f} ")
+        # print(f"{smooth:2s}omega = {omega:6.2f} omega2 = {omega2:6.2f} resnew2/resold2={resnew2/resold2:5.2f} ")
         u += omega*w
         r -= omega*Aw
         return u

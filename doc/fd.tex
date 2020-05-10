@@ -35,22 +35,40 @@
 %
 %
 %==========================================
-\section{Grid}\label{sec:}
+\section{Iteration}\label{sec:}
 %==========================================
 %
+Let $\scp{\cdot}{\cdot}=\scp{\cdot}{\cdot}_{\R^n}$ be the euclidian scalar product with norm $\norm{\cdot}=\norm{\cdot}_{\R^n}$. Let for a SPD matrix $W$ the scalar product $\scp{\cdot}{\cdot}_W:=\scp{W\cdot}{\cdot}$ with associated norm $\norm{\cdot}_W := \norm{W^{\frac12}\cdot}$.
+
+Consider an update
 %
 \begin{equation}\label{eq:}
-x_{n+1} = x_n + \omega w_n,\quad  w_n = B r_n, \quad r_n := b - A x_n
+x_{n+1} = w_n + \omega_n d_n,\quad \phi(\omega) = \frac12\norm{f - A (x_n + \omega d_n)}_W^2
+= \frac12\norm{r_n - \omega Ad_n}_W^2
 \end{equation}
 %
-If $A$ is SPD, we can either minimize with respect to the norm $\norm{A\cdot}$ or $\norm{A^{\frac12}\cdot}$
+Then we have a minimizer for
+%
+\begin{equation}\label{eq:}
+\omega_{*} = \frac{\scp{r_n}{Ad_n}_W}{\norm{Ad_n}^2_W},\quad \phi(\omega_*)-\phi(0) =
+- \frac{\omega_*}{2}\scp{r_n}{Ad_n}_W = - \frac{\omega_*^2}{2}\norm{Ad_n}^2_W
+\end{equation}
+%
+
+If $A$ is SPD, we can either minimize with respect to the norm $\norm{\cdot}$ or $\norm{\cdot}_{A^{-1}}$
 %
 \begin{align*}
-\omega^{(1)} = \frac{\transpose{r_n}{Aw_n}}{\transpose{(Aw_n)}{Aw_n}},\quad
-\omega^{(2)} = \frac{\transpose{r_n}{w_n}}{\transpose{(Aw_n)}{w_n}}
+\omega^{(1)} = \frac{\transpose{r_n}{Ad_n}}{\transpose{(Ad_n)}{Ad_n}},\quad
+\omega^{(2)} = \frac{\transpose{r_n}{d_n}}{\transpose{(Ad_n)}{d_n}}
 \end{align*}
 %
-If $A$ is not symmetric, $\omega^{(2)}$ is still be well defined, if $A$ is elliptic ($\transpose{\xi}A\xi\ge \alpha\transpose{\xi}\xi$) and corresponds to minimization over the space $\vect{x_n, w_n}$.
+If $A$ is not symmetric, $\omega^{(2)}$ is still well defined, if $A$ is elliptic ($\transpose{\xi}A\xi\ge \alpha\transpose{\xi}\xi$) and corresponds to a Galerkin solution over the space $\vect{x_n, d_n}$.
+
+Suppose that $d_n$ is defined py a preconditioner, $B d_n = r_n$.
+
+
+
+
 
 Now let us consider a Gauss-Seidel-type iteration with $A=L+U$ and
 %
@@ -59,6 +77,17 @@ x_{n+1} = (1-\omega)x_n + \omega L^{-1}(b- U x^n) = x_n +  \omega L^{-1}r^n.
 \end{align*}
 %
 
+
+%
+%==========================================
+\section{Grid}\label{sec:}
+%==========================================
+%
+%
+\begin{equation}\label{eq:}
+x_{n+1} = x_n + \omega w_n,\quad  w_n = B r_n, \quad r_n := b - A x_n
+\end{equation}
+%
 
 %
 %==========================================

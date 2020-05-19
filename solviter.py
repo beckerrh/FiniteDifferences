@@ -120,8 +120,7 @@ Nc = [20, 40, 60, 80]
 nis = []
 temps = []
 errs = []
-ksolve = 3
-ksh = 1
+ksh = 2
 for ksolve in [1, 2, 3]:
     nis.append([])
     temps.append([])
@@ -156,6 +155,6 @@ plt.legend()
 plt.title(f"ksh={ksh}")
 plt.ylabel('Erreur')
 plt.xlabel('Temps de calcul (s)')
-plt.savefig(f"TvsE_{ksh}.png"")
+plt.savefig(f"TvsE_{ksh}.png")
 plt.show()
 

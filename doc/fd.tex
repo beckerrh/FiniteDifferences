@@ -1,0 +1,228 @@
+\documentclass[12pt, english]{article}
+%----------------------------------------
+\usepackage[a4paper, top=1cm, bottom=2cm]{geometry}
+\usepackage{graphicx, xcolor}
+\usepackage{amssymb,amsmath}
+\usepackage{url}
+\definecolor{mygray}{rgb}{0.9,0.9,0.9}
+\definecolor{mygreen}{rgb}{0,0.6,0}
+
+\usepackage{listings}
+\lstset{ 
+  backgroundcolor=\color{mygray},
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  commentstyle=\color{mygreen},
+  deletekeywords={...},
+  escapeinside={\%*}{*)},
+  frame=single,
+  showstringspaces=false,
+  language=Python
+}
+\usepackage[many]{tcolorbox}
+\tcbuselibrary{breakable}
+
+\input{macros.tex}
+
+%----------------------------------------
+\title{Finite difference}
+\author{Roland Becker}
+
+%==========================================
+\begin{document}
+%==========================================
+\maketitle
+%
+%
+%==========================================
+\section{Iteration}\label{sec:}
+%==========================================
+%
+Let $\scp{\cdot}{\cdot}=\scp{\cdot}{\cdot}_{\R^n}$ be the euclidian scalar product with norm $\norm{\cdot}=\norm{\cdot}_{\R^n}$. Let for a SPD matrix $W$ the scalar product $\scp{\cdot}{\cdot}_W:=\scp{W\cdot}{\cdot}$ with associated norm $\norm{\cdot}_W := \norm{W^{\frac12}\cdot}$.
+
+Consider an update
+%
+\begin{equation}\label{eq:}
+x_{n+1} = w_n + \omega_n d_n,\quad \phi(\omega) = \frac12\norm{f - A (x_n + \omega d_n)}_W^2
+= \frac12\norm{r_n - \omega Ad_n}_W^2
+\end{equation}
+%
+Then we have a minimizer for
+%
+\begin{equation}\label{eq:}
+\omega_{*} = \frac{\scp{r_n}{Ad_n}_W}{\norm{Ad_n}^2_W},\quad \phi(\omega_*)-\phi(0) =
+- \frac{\omega_*}{2}\scp{r_n}{Ad_n}_W = - \frac{\omega_*^2}{2}\norm{Ad_n}^2_W
+\end{equation}
+%
+
+If $A$ is SPD, we can either minimize with respect to the norm $\norm{\cdot}$ or $\norm{\cdot}_{A^{-1}}$
+%
+\begin{align*}
+\omega^{(1)} = \frac{\transpose{r_n}{Ad_n}}{\transpose{(Ad_n)}{Ad_n}},\quad
+\omega^{(2)} = \frac{\transpose{r_n}{d_n}}{\transpose{(Ad_n)}{d_n}}
+\end{align*}
+%
+If $A$ is not symmetric, $\omega^{(2)}$ is still well defined, if $A$ is elliptic ($\transpose{\xi}A\xi\ge \alpha\transpose{\xi}\xi$) and corresponds to a Galerkin solution over the space $\vect{x_n, d_n}$.
+
+Suppose that $d_n$ is defined py a preconditioner, $B d_n = r_n$.
+
+
+
+
+
+Now let us consider a Gauss-Seidel-type iteration with $A=L+U$ and
+%
+\begin{align*}
+x_{n+1} = (1-\omega)x_n + \omega L^{-1}(b- U x^n) = x_n +  \omega L^{-1}r^n.
+\end{align*}
+%
+
+
+%
+%==========================================
+\section{Grid}\label{sec:}
+%==========================================
+%
+%
+\begin{equation}\label{eq:}
+x_{n+1} = x_n + \omega w_n,\quad  w_n = B r_n, \quad r_n := b - A x_n
+\end{equation}
+%
+
+%
+%==========================================
+\section{Mixed FEM}\label{sec:}
+%==========================================
+%
+
+%
+%==========================================
+\section{Grid}\label{sec:}
+%==========================================
+%
+We suppose the following numbering
+%
+\begin{equation}\label{eq:}
+ii = \sum_{j=0}^{d-1}\left(\prod_{k=j+1}^{d-1}n_k\right) i_j,\quad i=[i_0,\ldots,i_{d-1}]
+\end{equation}
+%
+%
+%
+%==========================================
+\section{Mixed FEM}\label{sec:}
+%==========================================
+%
+The mixed formulation on a $d$-dimensional brick leads to
+%
+\begin{equation}\label{eq:structfemsys}
+\begin{bmatrix}
+A_1 && &  & B_1 \\
+ & A_2 &&  & B_2 \\
+&&\ddots&&\vdots  \\
+& &  &  A_d& B_d \\
+C_1 & C_2 &\cdots & C_d & D
+\end{bmatrix}
+\begin{bmatrix}
+  u_1 \\ u_2 \\ \vdots \\ u_d \\ p
+\end{bmatrix}
+=
+\begin{bmatrix}
+  g_1 \\ g_2 \\ \vdots \\ g_d \\ f
+\end{bmatrix}
+\end{equation}
+which leads to the pressure equation
+\begin{equation}\label{eq:structfemsys}
+  S p = f - \sum_{i=1}^d C_i A_i^{-1} g_i,\quad S := D - \sum_{i=1}^d C_i A_i^{-1}B_i
+\end{equation}
+  which allows to recover the fluxes by
+\begin{equation*}
+  A_i u_i = g_i  - B_i p.
+\end{equation*}
+
+%
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsubsection{Elimination in $d=1$}
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%
+We have the following equations
+%
+\begin{equation}\label{eq:}
+%
+\left\{
+\begin{aligned}
+a_{i,i-1} u_{i-1} + a_{i,i} u_{i} + a_{i,i+1} u_{i+1} + b_{i,i-\frac12} p_{i-\frac12}   + b_{i,i+\frac12} p_{i+\frac12} =& g_i\\
+c_{i-\frac12, i-1} u_{i-1} + c_{i-\frac12, i} u_{i} =& f_{i-\frac12}\\
+c_{i+\frac12, i} u_{i} + c_{i+\frac12, i+1} u_{i+1} =& f_{i+\frac12}
+\end{aligned}
+\right.
+%
+\end{equation}
+%
+We can use the last two equations to eliminate $u_{i\pm1}$, thus
+%
+\begin{equation}\label{eq:}
+x_i u_i =  g_i - \frac{a_{i,i-1}}{c_{i-\frac12, i-1}}f_{i-\frac12}- \frac{a_{i,i+1}}{c_{i+\frac12, i+1}}f_{i+\frac12}
+- b_{i,i-\frac12} p_{i-\frac12}   - b_{i,i+\frac12} p_{i+\frac12},\quad
+x_i = a_{i,i} - \frac{a_{i,i-1}c_{i-\frac12, i}}{c_{i-\frac12, i-1}}- \frac{a_{i,i+1}c_{i+\frac12, i}}{c_{i+\frac12, i+1}}
+\end{equation}
+%
+For a boundary node we have, say the left, $i=0$, we have
+\begin{equation}\label{eq:}
+%
+\left\{
+\begin{aligned}
+a_{0,0} u_{0} + a_{0,1} u_{1} + b_{0,\frac12} p_{\frac12} =& g_0\\
+c_{\frac12, 0} u_{0} + c_{\frac12, 1} u_{1} =& f_{\frac12}
+\end{aligned}
+\right.
+%
+\end{equation}
+%
+Using the last  equation to eliminate $u_{1}$, thus
+%
+\begin{equation}\label{eq:}
+x_0 u_0 =  g_0 - \frac{a_{0,1}}{c_{\frac12, 1}}f_{\frac12}
+  - b_{0,\frac12} p_{\frac12},\quad
+x_0 = a_{0,0} -  \frac{a_{0,1}c_{\frac12, 0}}{c_{\frac12, 1}}
+\end{equation}
+%
+This gives the following finite difference stencil on the boundary
+%
+%
+\begin{align*}
+\frac{c_{\frac12, 0}}{x_{0}} \left(g_0 - \frac{a_{0,1}}{c_{\frac12, 1}}f_{\frac12}
+  - b_{0,\frac12} p_{\frac12}\right) 
+  + \frac{c_{\frac12, 1}}{x_1} \left(
+  g_1 - \frac{a_{1,0}}{c_{\frac12, 0}}f_{\frac12}- \frac{a_{1,2}}{c_{\frac32, 2}}f_{\frac32}
+- b_{1,\frac12} p_{\frac12}   - b_{1,\frac32} p_{\frac32}
+\right) =& f_{\frac12}
+\end{align*}
+%
+and on the interior
+%
+\begin{align*}
+&\frac{c_{i+\frac12, i}}{x_i} \left( 
+g_i - \frac{a_{i,i-1}}{c_{i-\frac12, i-1}}f_{i-\frac12}- \frac{a_{i,i+1}}{c_{i+\frac12, i+1}}f_{i+\frac12}
+- b_{i,i-\frac12} p_{i-\frac12}   - b_{i,i+\frac12} p_{i+\frac12}
+\right)  
+\\+& \frac{c_{i+\frac12, i+1}}{x_{i+1}} \left( 
+g_{i+1} - \frac{a_{i+1,i}}{c_{i+\frac12, i}}f_{i+\frac12}- \frac{a_{i+1,i+1+1}}{c_{i+\frac32, i+1+1}}f_{i+\frac32}
+- b_{i+1,i+\frac12} p_{i+\frac12}   - b_{i+1,i+\frac32} p_{i+\frac32}
+\right) =& f_{i+\frac12}
+\end{align*}
+%
+
+\begin{equation}\label{eq:}
+%
+\left\{
+\begin{aligned}
+\end{aligned}
+\right.
+%
+\end{equation}
+%
+
+
+%==========================================
+\end{document}  
+%==========================================

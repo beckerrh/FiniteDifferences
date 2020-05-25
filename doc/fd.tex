@@ -25,7 +25,7 @@
 \input{macros.tex}
 
 %----------------------------------------
-\title{Finite difference}
+\title{Finite éléments on structured meshed}
 \author{Roland Becker}
 
 %==========================================
@@ -33,6 +33,24 @@
 %==========================================
 \maketitle
 %
+%
+%==========================================
+\section{The $Q^1$-element}\label{sec:}
+%==========================================
+%
+We denote by $\alpha=(\alpha_1,\ldots\alpha_d)\in\N_0^d$ et multi-index with the usual conventions, such as $\abs{\alpha}_{\infty}=\max_{1\le i\le d}\alpha_i$, and by $x_{\alpha}\in\R^d$ de  points of tensor-product grids on 
+$\Omega = \prod_{i=1}^d ]0,L_i[$.
+
+The one-dimensional $P^1$-element leads to the mass and stiffness matrices on the grid $0=x_0 < x_1<\ldots<x_n=L$ with spacing $dx_i = x_i-x_{i-1}$
+%
+\begin{equation}\label{eq:mat1d}
+\int_I \phi_i \phi_j = \begin{cases}
+0 & $\abs{i-j} > 1$\\
+\end{cases}
+\end{equation}
+%
+
+
 %
 %==========================================
 \section{Iteration}\label{sec:}

@@ -161,10 +161,10 @@ def dirichlet(grid, v, u):
     for i in range(d):
         if grid.bdrycond[i][0] == 'dirichlet':
             vs, xs = np.moveaxis(v, i, 0), np.moveaxis(x, i+1, 1)
-            vs[ 0] = u(xs[:, 0])
+            vs[ 0] = u(*xs[:, 0])
         if grid.bdrycond[i][1] == 'dirichlet':
             vs, xs = np.moveaxis(v, i, 0), np.moveaxis(x, i+1, 1)
-            vs[-1] = u(xs[:, -1])
+            vs[-1] = u(*xs[:, -1])
     return v.ravel()
 #-----------------------------------------------------------------#
 def createRhsVectorDiff(grid, u):
@@ -173,14 +173,14 @@ def createRhsVectorDiff(grid, u):
     x, d, v = grid.coord(), grid.dim, grid.volumeK()
     b = np.zeros(x[0].shape)
     for i in range(d):
-        b -= u.dd(i,i,x)*v
+        b -= u.dd(i,i,*x)*v
     return dirichlet(grid, b, u)
 #=================================================================#
 def test(g, expr, solver='direct', uold=None, gold=None):
     for i in range(g.dim):
         g.bdrycond[i][0] = g.bdrycond[i][1] = 'dirichlet'
     A = createMatrixDiff(g)
-    uex = anasol.AnalyticalSolution(g.dim, expr)
+    uex = anasol.AnalyticalSolution(expr, dim=g.dim)
     b = createRhsVectorDiff(g, uex)
     if gold == None:
         u0 = np.zeros_like(b)

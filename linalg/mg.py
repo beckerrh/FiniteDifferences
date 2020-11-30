@@ -290,7 +290,7 @@ if __name__ == '__main__':
     for i in range(d): expr += f"log(1+x{i}**2)*"
     expr = expr[:-1]
     # expr = '3+x1+x0'
-    uex = anasol.AnalyticalSolution(d, expr)
+    uex = anasol.AnalyticalSolution(expr, dim=d)
     n = np.array(d*[2**l+1])
     # n = 2**(l-2)*np.array([2,16,2])+1
     bounds = np.tile(np.array([-1,1]),d).reshape(d,2)

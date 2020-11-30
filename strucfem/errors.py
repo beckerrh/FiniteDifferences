@@ -7,11 +7,11 @@ def errorl2(grid, u, uex, compute_error=False):
     """
     """
     x, xc, d, u = grid.coord(), grid.coordCenters(), np.sqrt(1/grid.nall()), u.ravel()
-    errl2 = d*np.linalg.norm(u-uex(x).ravel())
+    errl2 = d*np.linalg.norm(u-uex(*x).ravel())
     uc = transfer.tocell(grid,u)
     # print(f"grid={grid} volK*N={grid.volumeK()*grid.nall()}")
     # print(f"x = {x} xc={xc} uexc={uex(xc)}")
-    errl2 += d*np.linalg.norm(uc-uex(xc).ravel())
+    errl2 += d*np.linalg.norm(uc-uex(*xc).ravel())
     if not compute_error: return errl2
     return errl2, u-uex(x)
 
@@ -22,7 +22,7 @@ def test(d=1):
     g = grid.Grid(n=n, bounds=bounds)
     expr = ''
     for i in range(d): expr += f"{np.random.randint(low=1,high=9)}*x{i}+"
-    uex = anasol.AnalyticalSolution(g.dim, expr[:-1])
+    uex = anasol.AnalyticalSolution(expr[:-1], dim=g.dim)
     u = uex(g.coord())
     err = errorl2(g, u, uex)
     print(f"u={uex} grid={g}\nerr = {err:10.4e}")

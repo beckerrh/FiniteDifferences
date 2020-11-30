@@ -3,7 +3,7 @@ import scipy as sp
 from strucfem import grid, tools, plotgrid, matrix
 import simfempy.tools.analyticalsolution as anasol
 import matplotlib.pyplot as plt
-from numba import jit
+# from numba import jit
 
 
 #-----------------------------------------------------------------#
@@ -375,12 +375,12 @@ def _interpolatesimplenumba(dim, uf, uc):
     elif dim==3: _interpolatesimplenumba3D(uf, uc)
     elif dim==4: _interpolatesimplenumba4D(uf, uc)
     else: raise ValueError(f"not written in dim={dim}")
-@jit(nopython=True)
+# @jit(nopython=True)
 def _interpolatesimplenumba1D(uf, uc):
     uf[1::2] += uc
     uf[:-1:2] += 0.5 * uc
     uf[2::2] += 0.5 * uc
-@jit(nopython=True)
+# @jit(nopython=True)
 def _interpolatesimplenumba2D(uf, uc):
     uf[1::2, 1::2] += uc
     uf[:-1:2, 1::2] += 0.5 * uc
@@ -391,7 +391,7 @@ def _interpolatesimplenumba2D(uf, uc):
     uf[2::2, :-1:2] += 0.25 * uc
     uf[:-1:2, 2::2] += 0.25 * uc
     uf[2::2, 2::2] += 0.25 * uc
-@jit(nopython=True)
+# @jit(nopython=True)
 def _interpolatesimplenumba3D(uf, uc):
     uf[1::2, 1::2, 1::2] += uc
     uf[:-1:2, 1::2, 1::2] += 0.5 * uc
@@ -420,7 +420,7 @@ def _interpolatesimplenumba3D(uf, uc):
     uf[:-1:2, :-1:2, 2::2] += 0.125 * uc
     uf[2::2, 2::2, 2::2] += 0.125 * uc
     uf[:-1:2, 2::2, 2::2] += 0.125 * uc
-@jit(nopython=True)
+# @jit(nopython=True)
 def _interpolatesimplenumba4D(uf, uc):
     uf[1::2, 1::2, 1::2, 1::2] += uc
     uf[:-1:2, 1::2, 1::2, 1::2] += 0.5 * uc
@@ -699,7 +699,7 @@ def interpolate(gridf, gridc, uold, transpose=False, unew=None, level=None):
     return unew
 #-----------------------------------------------------------------#
 def error(g, u, uex):
-    err = np.linalg.norm(u.reshape(g.n) - uex(g.coord())) / np.sqrt(g.nall())
+    err = np.linalg.norm(u.reshape(g.n) - uex(*g.coord())) / np.sqrt(g.nall())
     if err > 1e-15:
         print(f"err={err:12.4e}\n uex=\n{uex}")
         print(f"uc={u.sum()}\n u=\n{uex(g.coord()).sum()}")
@@ -708,7 +708,7 @@ def error(g, u, uex):
 def testprolongation(ns, bounds, expr, fcts, transpose=False):
     import time
     d = len(bounds)
-    uex = anasol.AnalyticalSolution(d, expr)
+    uex = anasol.AnalyticalSolution(expr, dim=d)
     print(f"uex={uex}")
     grids = []
     for n in ns:
@@ -746,7 +746,7 @@ def testprolongation(ns, bounds, expr, fcts, transpose=False):
                     raise ValueError(f"bug in restrict {abs(suc-suf)}")
     else:
         args = "(gridf = gf, gridc = gc, uold=uc, level=l+1)"
-        uc = uex(grids[0].coord())
+        uc = uex(*grids[0].coord())
         for l in range(len(grids)-1):
             gc = grids[l]
             gf = grids[l+1]
@@ -781,7 +781,7 @@ def testtocell(d=1):
     g = grid.Grid(d * [3], bounds=d * [[-1, 1]])
     expr = ''
     for i in range(d): expr += f"{np.random.randint(low=1,high=9)}*x{i}+"
-    uex = anasol.AnalyticalSolution(d, expr[:-1])
+    uex = anasol.AnalyticalSolution(expr[:-1], dim=d)
     u = uex(g.coord())
     # print(f"grid = {g}\nuex={uex}\nu={u}")
     uc = tocell(g, u)

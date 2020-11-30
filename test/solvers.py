@@ -12,7 +12,7 @@ def test(d=1):
     expr = ''
     for i in range(d): expr += f"cos(pi*x{i})+"
     expr = expr[:-1]
-    uex = anasol.AnalyticalSolution(d, expr)
+    uex = anasol.AnalyticalSolution(expr, dim=d)
     solvers = ["direct", "pyamg", "mg"]
     solvers = ["pyamg", "mg"]
     N, errs, its, ts = [], {}, {}, {}

@@ -11,7 +11,7 @@ def test(d=1):
     expr = ''
     for i in range(d): expr += f"cos(pi*x{i})+"
     expr = expr[:-1]
-    uex = anasol.AnalyticalSolution(d, expr)
+    uex = anasol.AnalyticalSolution(expr,dim=d)
     N, errs, its, ts = [], [], [], []
     gold = None
     for k in range(2*(6-d)):

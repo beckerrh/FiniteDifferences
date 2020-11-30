@@ -45,7 +45,7 @@ def test(solvers, d=1):
     g = grid.Grid(n=n, bounds=bounds)
     expr = ''
     for i in range(d): expr += f"{np.random.randint(low=1,high=9)}*x{i}+"
-    uex = anasol.AnalyticalSolution(g.dim, expr[:-1])
+    uex = anasol.AnalyticalSolution(expr[:-1], dim=g.dim)
     A = matrix.createMatrixDiff(g)
     b = matrix.createRhsVectorDiff(g, uex)
     for solver in solvers:

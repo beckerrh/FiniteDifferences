@@ -24,7 +24,7 @@ if __name__ == '__main__':
     expr = ''
     for i in range(d): expr += f"log(1+x{i}**2)*"
     expr = expr[:-1]
-    uex = anasol.AnalyticalSolution(d, expr)
+    uex = anasol.AnalyticalSolution(expr, dim=d)
     bounds=d*[[-1,1]]
     grid = grid.Grid(n=np.array(d*[2**l+1]), bounds=bounds)
     print(f"uex = {uex} N={grid.nall()}")
